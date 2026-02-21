@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Human Tower Battle - Volume Balanced</title>
+    <title>Human Tower Battle - Custom UI</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.19.0/matter.min.js"></script>
     <style>
         body { 
@@ -27,22 +27,33 @@
         }
         .hud { 
             background: rgba(255,255,255,0.85); 
-            padding: 8px 15px; 
-            border-radius: 20px; 
-            font-weight: bold; 
-            font-size: 14px; 
-            color: #263238;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            padding: 8px 15px; border-radius: 20px; 
+            font-weight: bold; font-size: 14px; color: #263238;
         }
         #next-preview { 
             width: 70px; height: 70px; 
             display: flex; align-items: center; justify-content: center; 
-            background: rgba(255,255,255,0.85); 
-            border-radius: 12px; 
-            margin-top: 8px;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            background: rgba(255,255,255,0.85); border-radius: 12px; margin-top: 8px;
         }
         #next-preview img { max-width: 85%; max-height: 85%; object-fit: contain; }
+
+        /* 自作ゲームオーバー画面の設定 */
+        #game-over-screen {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.7);
+            display: none; /* 最初は隠しておく */
+            flex-direction: column; align-items: center; justify-content: center;
+            color: white; border-radius: 12px; z-index: 100;
+            pointer-events: auto; /* ここだけはクリックできるようにする */
+        }
+        #game-over-screen h2 { font-size: 32px; margin: 0 0 10px 0; }
+        #game-over-screen p { font-size: 20px; margin: 0 0 20px 0; }
+        #game-over-screen button {
+            padding: 10px 30px; font-size: 18px; font-weight: bold;
+            cursor: pointer; border: none; border-radius: 25px;
+            background: #ff5252; color: white; transition: 0.2s;
+        }
+        #game-over-screen button:hover { background: #ff1744; transform: scale(1.1); }
     </style>
 </head>
 <body>
@@ -54,6 +65,12 @@
             <div class="hud">NEXT</div>
             <div id="next-preview"></div>
         </div>
+    </div>
+
+    <div id="game-over-screen">
+        <h2>タワー崩壊！</h2>
+        <p>SCORE: <span id="final-score">0</span></p>
+        <button onclick="location.reload()">もう一度遊ぶ</button>
     </div>
 </div>
 
@@ -96,37 +113,22 @@ updateNextPreview();
 
 function spawnPerson(x) {
     if (isGameOver) return;
-
+    const img = new Image();
+    img.src = poses[nextPoseIndex];
     const imagePath = poses[nextPoseIndex];
     nextPoseIndex = Math.floor(Math.random() * poses.length);
     updateNextPreview();
 
-    const img = new Image();
-    img.src = imagePath;
-
     img.onload = () => {
-        // --- 面積ベースのサイズ調整ロジック ---
-        // targetArea を一定にすることで、縦長でも正方形でもボリューム感を揃える
-        const targetArea = 4500; // この数値を大きくすると全体的に大きくなります
+        const targetArea = 4500; 
         const aspectRatio = img.width / img.height;
-        
-        // 面積から幅と高さを逆算する
-        // width * height = targetArea
-        // width / height = aspectRatio  => width = height * aspectRatio
-        // (height * aspectRatio) * height = targetArea => height^2 = targetArea / aspectRatio
         const targetHeight = Math.sqrt(targetArea / aspectRatio);
         const targetWidth = targetHeight * aspectRatio;
         const scale = targetWidth / img.width;
 
         const person = Bodies.rectangle(x, 50, targetWidth, targetHeight, {
             restitution: 0.1, friction: 0.9,
-            render: {
-                sprite: {
-                    texture: imagePath,
-                    xScale: scale,
-                    yScale: scale
-                }
-            }
+            render: { sprite: { texture: imagePath, xScale: scale, yScale: scale } }
         });
         Composite.add(world, person);
     };
@@ -140,18 +142,20 @@ Events.on(engine, 'afterUpdate', () => {
         if (!body.isStatic) {
             count++;
             if (body.position.y > screenHeight + 60) {
-                isGameOver = true;
-                Runner.stop(runner);
-                setTimeout(() => {
-                    alert("タワーが崩れました！\nSCORE: " + currentScore);
-                    window.location.reload();
-                }, 100);
+                showGameOver();
             }
         }
     });
     currentScore = count;
     document.getElementById('score').innerText = currentScore;
 });
+
+function showGameOver() {
+    isGameOver = true;
+    Runner.stop(runner);
+    document.getElementById('final-score').innerText = currentScore;
+    document.getElementById('game-over-screen').style.display = 'flex';
+}
 
 function handleAction(e) {
     if (isGameOver) return;
