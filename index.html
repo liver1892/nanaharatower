@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Human Tower Battle - Fixed</title>
+    <title>Human Tower Battle - 9 Poses Edition</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.19.0/matter.min.js"></script>
     <style>
         body { 
@@ -72,9 +72,14 @@ const screenHeight = 550;
 let isGameOver = false;
 let totalScore = 0;
 let currentRotation = 0;
-let canSpawn = true; // 連続生成防止フラグ
+let canSpawn = true;
 
-const poses = ['images/pose1.png', 'images/pose2.png', 'images/pose3.png', 'images/pose4.png', 'images/pose5.png', 'images/pose6.png'];
+// --- 画像リストを pose9 までに更新 ---
+const poses = [
+    'images/pose1.png', 'images/pose2.png', 'images/pose3.png',
+    'images/pose4.png', 'images/pose5.png', 'images/pose6.png',
+    'images/pose7.png', 'images/pose8.png', 'images/pose9.png'
+];
 let nextPoseIndex = Math.floor(Math.random() * poses.length);
 
 const render = Render.create({
@@ -103,7 +108,7 @@ function rotate90() {
     currentRotation += Math.PI / 2;
     updateNextPreview();
 }
-// 回転ボタンのイベント。preventDefaultで重複防止
+
 document.getElementById('rotate-btn').addEventListener('touchstart', (e) => {
     e.preventDefault();
     rotate90();
@@ -114,7 +119,7 @@ document.getElementById('rotate-btn').addEventListener('click', (e) => {
 
 function spawnPerson(x) {
     if (isGameOver || !canSpawn) return;
-    canSpawn = false; // 落としたらロック
+    canSpawn = false; 
 
     const imagePath = poses[nextPoseIndex];
     const img = new Image();
@@ -137,7 +142,6 @@ function spawnPerson(x) {
         currentRotation = 0; 
         updateNextPreview();
         
-        // 0.5秒後に次のパーツを落とせるようにする
         setTimeout(() => { canSpawn = true; }, 500);
     };
 }
@@ -168,7 +172,6 @@ Events.on(engine, 'afterUpdate', () => {
     document.getElementById('score').innerText = totalScore;
 });
 
-// --- 操作の重複防止処理 ---
 let isDragging = false;
 
 function handleStart(e) { 
@@ -178,12 +181,9 @@ function handleStart(e) {
 
 function handleEnd(e) {
     if (!isDragging || isGameOver || e.target.closest('button')) return;
-    
-    // イベントの伝播を止める（スマホでの重複反応防止）
     if (e.cancelable) e.preventDefault();
 
     const rect = render.canvas.getBoundingClientRect();
-    // touchかmouseか判定
     const clientX = e.changedTouches ? e.changedTouches[0].clientX : e.clientX;
     const mouseX = (clientX - rect.left) * (screenWidth / rect.width);
     
@@ -191,7 +191,6 @@ function handleEnd(e) {
     isDragging = false;
 }
 
-// キャンバス内でのみ反応させる
 render.canvas.addEventListener('mousedown', handleStart);
 window.addEventListener('mouseup', handleEnd);
 render.canvas.addEventListener('touchstart', handleStart, {passive: true});
