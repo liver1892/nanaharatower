@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Human Tower Battle</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.19.0/matter.min.js"></script>
+    <style>
+        body { margin: 0; overflow: hidden; background: #f0f0f0; }
+        canvas { display: block; margin: 0 auto; border: 2px solid #333; }
+    </style>
+</head>
+<body>
+    <script>
+        const { Engine, Render, Runner, Bodies, Composite, Mouse, MouseConstraint } = Matter;
+
+        const engine = Engine.create();
+        const render = Render.create({
+            element: document.body,
+            engine: engine,
+            options: { width: 400, height: 700, wireframes: false, background: '#fff' }
+        });
+
+        // 1. 地面を作る
+        const ground = Bodies.rectangle(200, 680, 400, 40, { isStatic: true, render: { fillStyle: '#333' } });
+        Composite.add(engine.world, ground);
+
+        // 2. クリックで「人」を落とす
+        window.addEventListener('mousedown', (e) => {
+            const person = Bodies.rectangle(e.clientX, 50, 40, 80, {
+                restitution: 0.2, // 跳ね返り
+                friction: 0.5,    // 摩擦（これが低いと滑り落ちる）
+                render: {
+                    // sprite: { texture: 'person1.png' } // ← ここで写真に差し替え！
+                    fillStyle: '#ff5722'
+                }
+            });
+            Composite.add(engine.world, person);
+        });
+
+        Render.run(render);
+        Runner.run(Runner.create(), engine);
+    </script>
+</body>
+</html>
