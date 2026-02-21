@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Human Tower Battle - なんでぇ～ Edition</title>
+    <title>Human Tower Battle - 回転 Edition</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.19.0/matter.min.js"></script>
     <style>
         body { 
@@ -28,7 +28,7 @@
         #controls { width: 100%; display: flex; justify-content: center; gap: 30px; margin-top: 15px; pointer-events: auto; }
         .btn { 
             width: 80px; height: 80px; border-radius: 50%; border: none; background: #ff5252; color: white; 
-            font-size: 24px; font-weight: bold; cursor: pointer; box-shadow: 0 4px #c62828;
+            font-size: 20px; font-weight: bold; cursor: pointer; box-shadow: 0 4px #c62828;
         }
         .btn:active { box-shadow: none; transform: translateY(4px); }
 
@@ -57,7 +57,7 @@
 </div>
 
 <div id="controls">
-    <button class="btn" id="rotate-btn">旋回</button>
+    <button class="btn" id="rotate-btn">回転</button>
 </div>
 
 <script>
@@ -127,7 +127,6 @@ function spawnPerson(x) {
     };
 }
 
-// --- スコア判定ロジックの改善 ---
 Events.on(engine, 'afterUpdate', () => {
     if (isGameOver) return;
     const allBodies = Composite.allBodies(world);
@@ -135,7 +134,6 @@ Events.on(engine, 'afterUpdate', () => {
     
     allBodies.forEach(body => {
         if (!body.isStatic) {
-            // 落下判定（画面外へ）
             if (body.position.y > screenHeight + 60) {
                 isGameOver = true;
                 Runner.stop(runner);
@@ -144,8 +142,7 @@ Events.on(engine, 'afterUpdate', () => {
                 return;
             }
 
-            // スコア判定：静止している（速度が非常に遅い）パーツのみ加点
-            // velocity.y, velocity.x がほぼ0、かつ画面内にいる
+            // 静止判定
             const speed = Math.sqrt(body.velocity.x ** 2 + body.velocity.y ** 2);
             if (speed < 0.2) { 
                 const heightBonus = Math.max(0, Math.floor((screenHeight - 40 - body.position.y) / 10));
