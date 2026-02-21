@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Human Tower Battle - 6 Poses Edition</title>
+    <title>Human Tower Battle - Volume Balanced</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.19.0/matter.min.js"></script>
     <style>
         body { 
@@ -49,9 +49,7 @@
 
 <div id="game-container">
     <div id="ui-layer">
-        <div>
-            <div class="hud">SCORE: <span id="score">0</span></div>
-        </div>
+        <div><div class="hud">SCORE: <span id="score">0</span></div></div>
         <div style="text-align: right;">
             <div class="hud">NEXT</div>
             <div id="next-preview"></div>
@@ -60,7 +58,6 @@
 </div>
 
 <script>
-// --- 基本設定 ---
 const { Engine, Render, Runner, Bodies, Composite, Events } = Matter;
 
 const engine = Engine.create();
@@ -70,53 +67,37 @@ const screenHeight = 600;
 let isGameOver = false;
 let currentScore = 0;
 
-// --- 画像リスト（pose1 〜 pose6） ---
 const poses = [
-    'images/pose1.png',
-    'images/pose2.png',
-    'images/pose3.png',
-    'images/pose4.png',
-    'images/pose5.png',
-    'images/pose6.png'
+    'images/pose1.png', 'images/pose2.png', 'images/pose3.png',
+    'images/pose4.png', 'images/pose5.png', 'images/pose6.png'
 ];
 let nextPoseIndex = Math.floor(Math.random() * poses.length);
 
-// --- レンダラー作成 ---
 const render = Render.create({
     element: document.getElementById('game-container'),
     engine: engine,
-    options: {
-        width: screenWidth,
-        height: screenHeight,
-        wireframes: false,
-        background: '#ffffff'
-    }
+    options: { width: screenWidth, height: screenHeight, wireframes: false, background: '#ffffff' }
 });
 
 Render.run(render);
 const runner = Runner.create();
 Runner.run(runner, engine);
 
-// --- 土台（地面） ---
 const ground = Bodies.rectangle(screenWidth / 2, screenHeight - 20, screenWidth * 0.75, 40, { 
-    isStatic: true, 
-    render: { fillStyle: '#263238' } 
+    isStatic: true, render: { fillStyle: '#263238' } 
 });
 Composite.add(world, ground);
 
-// --- NEXTプレビュー更新 ---
 function updateNextPreview() {
     const previewContainer = document.getElementById('next-preview');
     previewContainer.innerHTML = `<img src="${poses[nextPoseIndex]}" alt="next">`;
 }
 updateNextPreview();
 
-// --- パーツ生成 ---
 function spawnPerson(x) {
     if (isGameOver) return;
 
     const imagePath = poses[nextPoseIndex];
-    // 次のポーズをランダムに予約
     nextPoseIndex = Math.floor(Math.random() * poses.length);
     updateNextPreview();
 
@@ -124,13 +105,21 @@ function spawnPerson(x) {
     img.src = imagePath;
 
     img.onload = () => {
-        const targetWidth = 60; // パーツの基準幅
+        // --- 面積ベースのサイズ調整ロジック ---
+        // targetArea を一定にすることで、縦長でも正方形でもボリューム感を揃える
+        const targetArea = 4500; // この数値を大きくすると全体的に大きくなります
+        const aspectRatio = img.width / img.height;
+        
+        // 面積から幅と高さを逆算する
+        // width * height = targetArea
+        // width / height = aspectRatio  => width = height * aspectRatio
+        // (height * aspectRatio) * height = targetArea => height^2 = targetArea / aspectRatio
+        const targetHeight = Math.sqrt(targetArea / aspectRatio);
+        const targetWidth = targetHeight * aspectRatio;
         const scale = targetWidth / img.width;
-        const targetHeight = img.height * scale;
 
         const person = Bodies.rectangle(x, 50, targetWidth, targetHeight, {
-            restitution: 0.1, // 少し弾む
-            friction: 0.9,    // 滑り止め（高め）
+            restitution: 0.1, friction: 0.9,
             render: {
                 sprite: {
                     texture: imagePath,
@@ -139,28 +128,17 @@ function spawnPerson(x) {
                 }
             }
         });
-
         Composite.add(world, person);
-    };
-
-    img.onerror = () => {
-        console.error("画像読み込み失敗:", imagePath);
-        // 画像がない場合でもゲームが止まらないよう次の準備だけする
-        updateNextPreview();
     };
 }
 
-// --- スコア更新と判定 ---
 Events.on(engine, 'afterUpdate', () => {
     if (isGameOver) return;
-
     const allBodies = Composite.allBodies(world);
     let count = 0;
-    
     allBodies.forEach(body => {
         if (!body.isStatic) {
             count++;
-            // 画面の下に落ちたらゲームオーバー
             if (body.position.y > screenHeight + 60) {
                 isGameOver = true;
                 Runner.stop(runner);
@@ -171,25 +149,17 @@ Events.on(engine, 'afterUpdate', () => {
             }
         }
     });
-    
     currentScore = count;
     document.getElementById('score').innerText = currentScore;
 });
 
-// --- 操作イベント（マウス・タッチ） ---
 function handleAction(e) {
     if (isGameOver) return;
-    
-    // タッチの場合はデフォルトのスクロールなどを防止
     if (e.type === 'touchstart') e.preventDefault();
-
     const rect = render.canvas.getBoundingClientRect();
     const clientX = e.touches ? e.touches[0].clientX : e.clientX;
-    
-    // キャンバス内の相対座標に変換（レスポンシブ対応）
     const scaleX = screenWidth / rect.width;
     const mouseX = (clientX - rect.left) * scaleX;
-    
     if (mouseX >= 0 && mouseX <= screenWidth) {
         spawnPerson(mouseX);
     }
