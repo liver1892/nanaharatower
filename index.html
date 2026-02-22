@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Human Tower Battle - Slow Delivery Edition</title>
+    <title>Human Tower Battle - Final Adjustment</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.19.0/matter.min.js"></script>
     <style>
         body { 
@@ -13,23 +13,27 @@
             height: 100vh; position: fixed; width: 100%;
             user-select: none; -webkit-user-select: none;
         }
-        #game-container { position: relative; margin-top: 15px; }
+        #game-container { 
+            position: relative; margin-top: 15px; 
+            overflow: visible; /* バイクが枠外に少しはみ出しても見えるように */
+        }
         canvas { 
             box-shadow: 0 10px 30px rgba(0,0,0,0.5); border-radius: 8px; 
             background: #eceff1; max-width: 95vw; 
             max-height: 65vh;
             touch-action: none;
+            display: block;
         }
         
-        /* --- デリバリーユニット --- */
+        /* --- デリバリーユニット（位置を少し下げてキャンバス内に収める） --- */
         #delivery-unit {
-            position: absolute; width: 60px; height: 50px; left: -100px; top: -15px;
+            position: absolute; width: 60px; height: 50px; left: -100px; 
+            top: 5px; /* 上端が切れないよう、少し下に配置 */
             z-index: 100; pointer-events: none; display: none;
         }
         #bike-img { width: 55px; height: auto; position: absolute; left: 0; bottom: 0; z-index: 2; }
         #cargo-item { position: absolute; width: 20px; height: 20px; left: 5px; top: 8px; background: white; border-radius: 3px; z-index: 1; }
 
-        /* アイテム落下：時間を0.6sから1.0sへ低速化 */
         .falling-item {
             position: absolute; width: 25px; height: 25px; z-index: 90;
             background: white; border-radius: 4px; border: 1px solid #ccc;
@@ -37,7 +41,7 @@
         }
         @keyframes fall-down {
             0% { transform: translateY(0) rotate(0deg); opacity: 1; }
-            100% { transform: translateY(280px) rotate(360deg); opacity: 0; }
+            100% { transform: translateY(300px) rotate(360deg); opacity: 0; }
         }
 
         #effect-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 110; border-radius: 8px; }
@@ -74,11 +78,14 @@
         .item-name { font-size: 10px; font-weight: bold; line-height: 1.1; }
         .item-cost { font-size: 9px; color: #ffeb3b; }
 
+        /* ゲームオーバー画面（文字を大きく復活） */
         #game-over-screen {
             position: absolute; top: 0; left: 0; width: 100%; height: 100%;
             background: rgba(0,0,0,0.85); display: none; flex-direction: column; align-items: center; justify-content: center;
             color: white; border-radius: 8px; z-index: 200;
         }
+        #game-over-screen h1 { font-size: 48px; margin: 10px 0; color: #ff5252; }
+        #game-over-screen p { font-size: 24px; margin: 5px 0 20px 0; }
     </style>
 </head>
 <body>
@@ -97,9 +104,9 @@
         </div>
     </div>
     <div id="game-over-screen">
-        <h2>なんでぇ～</h2>
+        <h1>なんでぇ～</h1>
         <p>BEST: <span id="final-score">0</span></p>
-        <button style="padding: 10px 30px; border-radius: 20px; border: none; background: #4caf50; color: white; font-weight: bold;" onclick="restartGame()">もう1回</button>
+        <button style="padding: 12px 40px; border-radius: 30px; border: none; background: #4caf50; color: white; font-weight: bold; font-size: 18px; cursor: pointer;" onclick="restartGame()">もう1回</button>
     </div>
 </div>
 
@@ -130,14 +137,17 @@ let currentRotation = 0, canSpawn = true, isDelivering = false;
 
 const poses = ['images/pose1.png', 'images/pose2.png', 'images/pose3.png', 'images/pose4.png', 'images/pose5.png', 'images/pose6.png', 'images/pose7.png', 'images/pose8.png', 'images/pose9.png'];
 let nextPoseIndex = Math.floor(Math.random() * poses.length);
+
 const render = Render.create({
     element: document.getElementById('game-container'),
     engine: engine,
     options: { width: screenWidth, height: screenHeight, wireframes: false, background: '#ffffff' }
 });
+
 Render.run(render);
 let runner = Runner.create();
 Runner.run(runner, engine);
+
 const ground = Bodies.rectangle(screenWidth / 2, screenHeight - 20, screenWidth * 0.7, 40, { isStatic: true, label: 'ground', render: { fillStyle: '#263238' } });
 Composite.add(world, ground);
 
@@ -154,36 +164,16 @@ function updateNextPreview() {
 }
 updateNextPreview();
 
-// --- デリバリー演出（低速版） ---
 function startDelivery(itemImgSrc, onImpact) {
     if (isDelivering) return;
-    isDelivering = true; 
-    updateUI();
-
+    isDelivering = true; updateUI();
     const unit = document.getElementById('delivery-unit'), cargo = document.getElementById('cargo-item');
     cargo.src = itemImgSrc; cargo.style.display = 'block'; unit.style.display = 'block';
-    
-    let pos = -100;
-    const speed = 2.5; // スピードを5.0から2.5へ半減
-    const targetDropX = screenWidth / 2 - 30;
-    let dropped = false;
-
+    let pos = -100, speed = 2.5, targetDropX = screenWidth / 2 - 30, dropped = false;
     const driveInterval = setInterval(() => {
-        pos += speed;
-        unit.style.left = pos + 'px';
-
-        if (!dropped && pos >= targetDropX) {
-            dropped = true;
-            cargo.style.display = 'none';
-            dropItem(itemImgSrc, onImpact);
-        }
-
-        if (pos > screenWidth + 100) {
-            clearInterval(driveInterval);
-            unit.style.display = 'none';
-            isDelivering = false;
-            updateUI();
-        }
+        pos += speed; unit.style.left = pos + 'px';
+        if (!dropped && pos >= targetDropX) { dropped = true; cargo.style.display = 'none'; dropItem(itemImgSrc, onImpact); }
+        if (pos > screenWidth + 100) { clearInterval(driveInterval); unit.style.display = 'none'; isDelivering = false; updateUI(); }
     }, 16);
 }
 
@@ -191,37 +181,29 @@ function dropItem(imgSrc, onImpact) {
     const container = document.getElementById('game-container'), falling = document.createElement('img');
     falling.src = imgSrc; falling.className = 'falling-item'; 
     falling.style.left = (screenWidth / 2 - 12) + 'px'; 
-    falling.style.top = '5px';
+    falling.style.top = '25px'; /* 荷台の位置から落とす */
     container.appendChild(falling);
-
-    // 落下アニメーション(1.0s)が終わるのを待ってから発動
     setTimeout(() => { 
-        onImpact(); 
-        falling.remove();
-        const el = document.getElementById('effect-layer'); 
-        el.classList.remove('flash'); 
-        void el.offsetWidth; 
-        el.classList.add('flash');
+        onImpact(); falling.remove();
+        const el = document.getElementById('effect-layer'); el.classList.remove('flash'); void el.offsetWidth; el.classList.add('flash');
     }, 1000); 
 }
 
-document.getElementById('item-clear').onclick = function() {
+document.getElementById('item-clear').onclick = function(e) {
+    e.stopPropagation(); // 背景のクリックイベントを発動させない
     if (isGameOver || isDelivering) return;
     if (displayScore >= 500) {
-        baseScore = displayScore - 500;
-        currentStackScore = 0;
-        displayScore = baseScore;
-        updateUI();
+        baseScore = displayScore - 500; currentStackScore = 0; displayScore = baseScore; updateUI();
         startDelivery(this.querySelector('img').src, () => {
             Composite.allBodies(world).forEach(b => { if (b.label !== 'ground') Composite.remove(world, b); });
         });
-    } else { 
-        this.classList.add('error'); 
-        setTimeout(() => this.classList.remove('error'), 300); 
-    }
+    } else { this.classList.add('error'); setTimeout(() => this.classList.remove('error'), 300); }
 };
 
-document.getElementById('rotate-btn').onclick = () => { currentRotation += Math.PI / 2; updateNextPreview(); };
+document.getElementById('rotate-btn').onclick = (e) => { 
+    e.stopPropagation();
+    currentRotation += Math.PI / 2; updateNextPreview(); 
+};
 
 function spawnPerson(x) {
     if (isGameOver || !canSpawn) return;
@@ -266,14 +248,27 @@ function restartGame() {
     updateUI(); Runner.run(runner, engine);
 }
 
+// --- 操作系（PC/スマホ両対応） ---
 let isDragging = false;
-render.canvas.addEventListener('touchstart', (e) => { if (!e.target.closest('button') && !e.target.closest('.item-btn')) isDragging = true; });
-window.addEventListener('touchend', (e) => {
-    if (!isDragging || isGameOver || e.target.closest('button') || e.target.closest('.item-btn')) return;
+function onActionStart(e) {
+    if (e.target.closest('button') || e.target.closest('.item-btn')) return;
+    isDragging = true;
+}
+function onActionEnd(e) {
+    if (!isDragging || isGameOver) return;
     const rect = render.canvas.getBoundingClientRect();
-    const x = (e.changedTouches[0].clientX - rect.left) * (screenWidth / rect.width);
-    spawnPerson(x); isDragging = false;
-});
+    const clientX = e.changedTouches ? e.changedTouches[0].clientX : e.clientX;
+    const x = (clientX - rect.left) * (screenWidth / rect.width);
+    spawnPerson(x);
+    isDragging = false;
+}
+
+// キャンバスとその周辺でのクリック/タッチに対応
+render.canvas.addEventListener('mousedown', onActionStart);
+window.addEventListener('mouseup', onActionEnd);
+render.canvas.addEventListener('touchstart', (e) => { onActionStart(e); }, {passive: true});
+window.addEventListener('touchend', (e) => { onActionEnd(e); });
+
 </script>
 </body>
 </html>
