@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Human Tower Battle - 12 Poses & Balance Update</title>
+    <title>Human Tower Battle - Item Cost Fixed</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.19.0/matter.min.js"></script>
     <style>
         body { 
@@ -124,10 +124,11 @@ let world = engine.world;
 const screenWidth = 360, screenHeight = 550; 
 
 let isGameOver = false;
-let baseScore = 0, currentStackScore = 0, displayScore = 0;
+let baseScore = 0;           
+let currentStackScore = 0;   
+let displayScore = 0;        
 let currentRotation = 0, canSpawn = true, isDelivering = false;
 
-// --- ポーズの追加（12種類） ---
 const poses = [
     'images/pose1.png', 'images/pose2.png', 'images/pose3.png', 'images/pose4.png',
     'images/pose5.png', 'images/pose6.png', 'images/pose7.png', 'images/pose8.png',
@@ -165,7 +166,8 @@ updateNextPreview();
 
 function startDelivery(itemImgSrc, onImpact) {
     if (isDelivering) return;
-    isDelivering = true; updateUI();
+    isDelivering = true; 
+    updateUI();
     const unit = document.getElementById('delivery-unit'), cargo = document.getElementById('cargo-item');
     cargo.src = itemImgSrc; cargo.style.display = 'block'; unit.style.display = 'block';
     let pos = -100, speed = 2.5, targetDropX = screenWidth / 2 - 30, dropped = false;
@@ -188,15 +190,29 @@ function dropItem(imgSrc, onImpact) {
     }, 1000); 
 }
 
+// 【修正箇所】アイテム使用時のコスト支払い
 document.getElementById('item-clear').onclick = function(e) {
     e.stopPropagation();
     if (isGameOver || isDelivering) return;
+    
     if (displayScore >= 500) {
-        baseScore = displayScore - 500; currentStackScore = 0; displayScore = baseScore; updateUI();
+        // 合計スコアから500を引いてベーススコアにする
+        baseScore = displayScore - 500;
+        // 積みスコアもリセットして、合算値を確定させる
+        currentStackScore = 0;
+        displayScore = baseScore; 
+        updateUI();
+
         startDelivery(this.querySelector('img').src, () => {
-            Composite.allBodies(world).forEach(b => { if (b.label !== 'ground') Composite.remove(world, b); });
+            // 全消去
+            Composite.allBodies(world).forEach(b => { 
+                if (b.label !== 'ground') Composite.remove(world, b); 
+            });
         });
-    } else { this.classList.add('error'); setTimeout(() => this.classList.remove('error'), 300); }
+    } else { 
+        this.classList.add('error'); 
+        setTimeout(() => this.classList.remove('error'), 300); 
+    }
 };
 
 document.getElementById('rotate-btn').onclick = (e) => { 
@@ -204,7 +220,6 @@ document.getElementById('rotate-btn').onclick = (e) => {
     currentRotation += Math.PI / 2; updateNextPreview(); 
 };
 
-// --- パーツ生成ロジック（バランス調整版） ---
 function spawnPerson(x) {
     if (isGameOver || !canSpawn) return;
     canSpawn = false; 
@@ -213,23 +228,15 @@ function spawnPerson(x) {
     img.onload = () => {
         const targetArea = 4500, aspectRatio = img.width / img.height;
         const targetH = Math.sqrt(targetArea / aspectRatio), targetW = targetH * aspectRatio, scale = targetW / img.width;
-
-        // 【調整】わずかなランダムな横ズレ（手ブレ演出）
         const jitter = (Math.random() - 0.5) * 12; 
         const spawnX = x + jitter;
-
         const person = Bodies.rectangle(spawnX, 60, targetW, targetH, {
-            restitution: 0.15, // 少しだけ跳ねやすく（0.1 -> 0.15）
-            friction: 0.7,    // 摩擦を少し減らして滑りやすく（0.9 -> 0.7）
-            frictionAir: 0.02,
-            angle: currentRotation,
+            restitution: 0.15, friction: 0.7, frictionAir: 0.02, angle: currentRotation,
             render: { sprite: { texture: imgPath, xScale: scale, yScale: scale } }
         });
-        
         Composite.add(world, person);
         nextPoseIndex = Math.floor(Math.random() * poses.length);
-        currentRotation = 0; 
-        updateNextPreview();
+        currentRotation = 0; updateNextPreview();
         setTimeout(() => { canSpawn = true; }, 500);
     };
 }
@@ -250,6 +257,8 @@ Events.on(engine, 'afterUpdate', () => {
             }
         }
     });
+
+    // 【修正箇所】表示スコアの連動
     if (tempStackScore > currentStackScore) currentStackScore = tempStackScore;
     displayScore = baseScore + currentStackScore;
     updateUI();
@@ -262,7 +271,6 @@ function restartGame() {
     updateUI(); Runner.run(runner, engine);
 }
 
-// 操作系
 let isDragging = false;
 function onActionStart(e) {
     if (e.target.closest('button') || e.target.closest('.item-btn')) return;
@@ -276,12 +284,10 @@ function onActionEnd(e) {
     spawnPerson(x);
     isDragging = false;
 }
-
 render.canvas.addEventListener('mousedown', onActionStart);
 window.addEventListener('mouseup', onActionEnd);
 render.canvas.addEventListener('touchstart', onActionStart, {passive: true});
 window.addEventListener('touchend', onActionEnd);
-
 </script>
 </body>
 </html>
