@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Human Tower Battle - Delivery Edition</title>
+    <title>Human Tower Battle - Delivery Fixed</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.19.0/matter.min.js"></script>
     <style>
         body { 
@@ -20,55 +20,64 @@
         }
         
         /* --- デリバリー・アニメーション --- */
-        #delivery-bike {
+        #delivery-unit {
             position: absolute;
-            width: 80px; height: auto;
-            left: -100px; top: -10px; /* 初期位置は画面外 */
-            z-index: 50;
+            width: 80px; height: 60px;
+            left: -120px; top: -20px;
+            z-index: 100; /* 全ての手前に表示 */
             pointer-events: none;
             display: none;
         }
-        #delivery-bike img { width: 100%; height: auto; }
-        
-        /* バイクにくっつくアイテム */
+        /* バイク本体 */
+        #bike-img { 
+            width: 70px; height: auto; 
+            position: absolute; left: 0; bottom: 0;
+            z-index: 2;
+        }
+        /* 荷台のアイテム */
         #cargo-item {
             position: absolute;
-            width: 30px; height: 30px;
-            right: -10px; bottom: 10px;
+            width: 25px; height: 25px;
+            left: 0px; top: 10px; /* バイクの後ろ上部に来るように調整 */
             background: white; border-radius: 4px; border: 1px solid #ccc;
+            z-index: 1; /* バイクの少し後ろに配置 */
         }
 
-        /* 落ちるアイテムのアニメーション */
         .falling-item {
             position: absolute;
             width: 30px; height: 30px;
-            z-index: 45;
-            background: white; border-radius: 4px;
+            z-index: 90;
+            background: white; border-radius: 4px; border: 1px solid #ccc;
             animation: fall-down 0.6s ease-in forwards;
         }
         @keyframes fall-down {
-            0% { transform: translateY(0); opacity: 1; }
-            90% { transform: translateY(200px); opacity: 1; }
-            100% { transform: translateY(220px); opacity: 0; }
+            0% { transform: translateY(0) rotate(0deg); opacity: 1; }
+            100% { transform: translateY(250px) rotate(360deg); opacity: 0; }
         }
 
-        /* 画面フラッシュ */
         #effect-layer {
             position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-            pointer-events: none; z-index: 60; border-radius: 8px;
+            pointer-events: none; z-index: 110; border-radius: 8px;
         }
-        .flash { animation: flash-anim 0.5s ease-out; }
+        .flash { animation: flash-anim 0.4s ease-out; }
         @keyframes flash-anim {
-            0% { background: rgba(255,255,255,0.8); }
+            0% { background: rgba(255,255,255,0.9); }
             100% { background: rgba(255,255,255,0); }
         }
 
+        /* --- UIまわり --- */
         #ui-layer {
             position: absolute; top: 0; left: 0; width: 100%; height: 100%;
             pointer-events: none; padding: 12px; box-sizing: border-box;
             display: flex; justify-content: space-between; z-index: 20;
         }
-        .hud { background: rgba(0,0,0,0.7); padding: 8px 15px; border-radius: 10px; color: white; font-weight: bold; font-size: 14px; }
+        /* スコア背景が伸びないように display: inline-block に変更 */
+        .hud-box { display: flex; flex-direction: column; gap: 5px; pointer-events: none; }
+        .hud { 
+            background: rgba(0,0,0,0.7); padding: 8px 15px; border-radius: 10px; 
+            color: white; font-weight: bold; font-size: 14px; 
+            display: inline-block; width: fit-content;
+        }
         
         #bottom-ui { 
             width: 90%; display: flex; justify-content: center; align-items: center; 
@@ -78,13 +87,14 @@
         .btn-rotate { 
             width: 100px; height: 100px; border-radius: 50%; border: none; background: #ff5252; color: white; 
             font-size: 22px; font-weight: bold; cursor: pointer; box-shadow: 0 5px #c62828;
+            -webkit-tap-highlight-color: transparent;
         }
 
         #item-list { display: flex; flex-direction: column; gap: 8px; }
         .item-btn {
             width: 140px; height: 50px; background: #455a64; border-radius: 8px; border: 2px solid #cfd8dc;
             display: flex; align-items: center; padding: 2px 8px; cursor: pointer; color: white;
-            box-shadow: 0 3px #263238; transition: all 0.2s;
+            box-shadow: 0 3px #263238; transition: all 0.2s; -webkit-tap-highlight-color: transparent;
         }
         .item-btn.active { border-color: #ffeb3b; box-shadow: 0 0 10px #ffeb3b; }
         .item-btn.error { animation: shake 0.3s; background: #b71c1c; }
@@ -103,22 +113,27 @@
         #game-over-screen {
             position: absolute; top: 0; left: 0; width: 100%; height: 100%;
             background: rgba(0,0,0,0.85); display: none; flex-direction: column; align-items: center; justify-content: center;
-            color: white; border-radius: 8px; z-index: 100;
+            color: white; border-radius: 8px; z-index: 200;
         }
     </style>
 </head>
 <body>
 
 <div id="game-container">
-    <div id="delivery-bike">
-        <img src="images/pose5.png" alt="ショージ">
+    <div id="delivery-unit">
         <img id="cargo-item" src="" alt="">
+        <img id="bike-img" src="images/pose5.png" alt="ショージ">
     </div>
     
     <div id="effect-layer"></div>
     <div id="ui-layer">
-        <div class="hud">SCORE: <span id="score">0</span></div>
-        <div id="next-preview" style="width:60px; height:60px; background:rgba(255,255,255,0.9); border-radius:10px; display:flex; align-items:center; justify-content:center;"></div>
+        <div class="hud-box">
+            <div class="hud">SCORE: <span id="score">0</span></div>
+        </div>
+        <div class="hud-box" style="align-items: flex-end;">
+            <div class="hud">NEXT</div>
+            <div id="next-preview" style="width:50px; height:50px; background:rgba(255,255,255,0.9); border-radius:10px; display:flex; align-items:center; justify-content:center; margin-top:5px;"></div>
+        </div>
     </div>
     <div id="game-over-screen">
         <h1 style="font-size: 40px;">なんでぇ～</h1>
@@ -188,34 +203,37 @@ function updateNextPreview() {
 }
 updateNextPreview();
 
-// --- デリバリー演出関数 ---
+// --- デリバリー演出（修正版） ---
 function startDelivery(itemImgSrc, onImpact) {
     if (isDelivering) return;
     isDelivering = true;
     updateUI();
 
-    const bike = document.getElementById('delivery-bike');
+    const unit = document.getElementById('delivery-unit');
     const cargo = document.getElementById('cargo-item');
     cargo.src = itemImgSrc;
-    bike.style.display = 'block';
+    cargo.style.display = 'block';
+    unit.style.display = 'block';
     
-    let pos = -100;
-    const speed = 4;
+    let pos = -120;
+    const speed = 5;
     const targetDropX = screenWidth / 2 - 40;
+    let dropped = false;
 
     const driveInterval = setInterval(() => {
         pos += speed;
-        bike.style.left = pos + 'px';
+        unit.style.left = pos + 'px';
 
-        // 中央に来た時にアイテムを落とす
-        if (Math.abs(pos - targetDropX) < speed / 2) {
+        // 中央付近でドロップ
+        if (!dropped && pos >= targetDropX) {
+            dropped = true;
+            cargo.style.display = 'none'; // 荷台から消す
             dropItem(itemImgSrc, onImpact);
         }
 
-        // 画面外に消えたら終了
-        if (pos > screenWidth + 100) {
+        if (pos > screenWidth + 120) {
             clearInterval(driveInterval);
-            bike.style.display = 'none';
+            unit.style.display = 'none';
             isDelivering = false;
             updateUI();
         }
@@ -231,11 +249,9 @@ function dropItem(imgSrc, onImpact) {
     falling.style.top = '10px';
     container.appendChild(falling);
 
-    // アニメーション終了（着地）に合わせて本発動
     setTimeout(() => {
         onImpact();
         falling.remove();
-        // フラッシュエフェクト
         const effectLayer = document.getElementById('effect-layer');
         effectLayer.classList.remove('flash');
         void effectLayer.offsetWidth;
@@ -243,17 +259,13 @@ function dropItem(imgSrc, onImpact) {
     }, 600);
 }
 
-// アイテムボタンのイベント
 document.getElementById('item-clear').onclick = function() {
     if (isGameOver || isDelivering) return;
     if (bestScoreInRound >= 500) {
         bestScoreInRound -= 500;
         updateUI();
-
-        // バイク演出開始
         const itemImg = this.querySelector('img').src;
         startDelivery(itemImg, () => {
-            // 着地した時の効果：全パーツ削除
             const allBodies = Composite.allBodies(world);
             allBodies.forEach(body => {
                 if (body.label !== 'ground') Composite.remove(world, body);
