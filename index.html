@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Human Tower Battle - Fixed Score & Blue UI</title>
+    <title>Human Tower Battle - Fixed Animation Order</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.19.0/matter.min.js"></script>
     <style>
         body { 
@@ -65,11 +65,8 @@
             display: flex; align-items: center; padding: 0 8px; cursor: pointer; color: white;
             box-shadow: 0 2px #263238; -webkit-tap-highlight-color: transparent; transition: all 0.2s;
         }
-        
-        /* アイテム使用可能時の枠を青（水色）に変更 */
         .item-btn.active { border-color: #00e5ff; box-shadow: 0 0 12px #00e5ff; background: #546e7a; }
         .item-btn.active .item-cost { color: #00e5ff; }
-        
         .item-btn.error { animation: shake 0.3s; background: #b71c1c; }
         .item-btn img { width: 28px; height: 28px; object-fit: contain; margin-right: 6px; background: white; border-radius: 3px; }
         .item-name { font-size: 10px; font-weight: bold; line-height: 1.1; }
@@ -158,7 +155,6 @@ Composite.add(world, ground);
 function updateUI() {
     document.getElementById('score').innerText = displayScore;
     const btn = document.getElementById('item-clear');
-    // 青色枠の判定
     if(displayScore >= 500 && !isDelivering) btn.classList.add('active');
     else btn.classList.remove('active');
 }
@@ -171,8 +167,7 @@ updateNextPreview();
 
 function startDelivery(itemImgSrc, onImpact) {
     if (isDelivering) return;
-    isDelivering = true; 
-    updateUI();
+    isDelivering = true; updateUI();
     const unit = document.getElementById('delivery-unit'), cargo = document.getElementById('cargo-item');
     cargo.src = itemImgSrc; cargo.style.display = 'block'; unit.style.display = 'block';
     let pos = -100, speed = 2.5, targetDropX = screenWidth / 2 - 30, dropped = false;
@@ -190,31 +185,33 @@ function dropItem(imgSrc, onImpact) {
     falling.style.top = '25px';
     container.appendChild(falling);
     setTimeout(() => { 
-        onImpact(); falling.remove();
+        onImpact(); // ここで消去とスコア確定を実行
+        falling.remove();
         const el = document.getElementById('effect-layer'); el.classList.remove('flash'); void el.offsetWidth; el.classList.add('flash');
     }, 1000); 
 }
 
-// --- アイテム使用：完全消費・固定ロジック ---
+// --- アイテム使用：演出後に消去するよう修正 ---
 document.getElementById('item-clear').onclick = function(e) {
     e.stopPropagation();
     if (isGameOver || isDelivering) return;
     
     if (displayScore >= 500) {
-        // 1. スコアを即座に減算し、それを「動かない基礎スコア」にする
+        // 先にポイント消費を反映（表示だけ確定させる）
         baseScore = displayScore - 500;
         currentStackScore = 0;
         displayScore = baseScore;
         updateUI();
 
-        // 2. 物理エンジンから全パーツを即座に消す（再計算を防ぐ）
-        Composite.allBodies(world).forEach(b => { 
-            if (b.label !== 'ground') Composite.remove(world, b); 
-        });
-
-        // 3. バイク演出開始
+        // バイク演出。完了時（インパクト時）にパーツを消す
         startDelivery(this.querySelector('img').src, () => {
-            // 着地時の処理（既に消去済みなのでフラッシュのみ）
+            Composite.allBodies(world).forEach(b => { 
+                if (b.label !== 'ground') Composite.remove(world, b); 
+            });
+            // 消去後に確実にスコアをリセット
+            currentStackScore = 0;
+            displayScore = baseScore;
+            updateUI();
         });
     } else { 
         this.classList.add('error'); 
@@ -263,16 +260,17 @@ Events.on(engine, 'afterUpdate', () => {
                 document.getElementById('game-over-screen').style.display = 'flex'; 
                 return; 
             }
-            // 各パーツの静止判定とスコア計算
             if (Math.sqrt(body.velocity.x**2 + body.velocity.y**2) < 0.2) {
                 tempStackScore += (100 + Math.max(0, Math.floor((screenHeight - 40 - body.position.y) / 10)) * 10);
             }
         });
-        // 今のタワーでの最高スコアを記録
         if (tempStackScore > currentStackScore) currentStackScore = tempStackScore;
     }
 
-    displayScore = baseScore + currentStackScore;
+    // デリバリー中（アイテム待ち）の時は、スコアを増やさないようにロック
+    if (!isDelivering) {
+        displayScore = baseScore + currentStackScore;
+    }
     updateUI();
 });
 
