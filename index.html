@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Human Tower Battle - High DPI Edition</title>
+    <title>Human Tower Battle - Pure Random Edition</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.19.0/matter.min.js"></script>
     <style>
         body { 
@@ -18,7 +18,6 @@
             box-shadow: 0 10px 30px rgba(0,0,0,0.5); border-radius: 8px; 
             background: #eceff1; max-width: 95vw; max-height: 65vh;
             touch-action: none; display: block;
-            /* 高解像度時のボヤけを防ぐ追加設定 */
             image-rendering: -webkit-optimize-contrast;
         }
         
@@ -125,9 +124,7 @@ const { Engine, Render, Runner, Bodies, Composite, Events } = Matter;
 let engine = Engine.create();
 let world = engine.world;
 
-// 基本サイズ
 const baseWidth = 360, baseHeight = 550;
-// デバイスピクセル比を取得（高解像度対応）
 const ratio = window.devicePixelRatio || 1;
 
 let isGameOver = false;
@@ -136,14 +133,24 @@ let currentStackScore = 0;
 let displayScore = 0;        
 let currentRotation = 0, canSpawn = true, isDelivering = false;
 
+// --- ポーズ管理（シンプルなランダム方式） ---
 const poses = [
     'images/pose1.png', 'images/pose2.png', 'images/pose3.png', 'images/pose4.png',
     'images/pose5.png', 'images/pose6.png', 'images/pose7.png', 'images/pose8.png',
     'images/pose9.png', 'images/pose10.png', 'images/pose11.png', 'images/pose12.png'
 ];
+let lastPoseIndex = -1;
 let nextPoseIndex = Math.floor(Math.random() * poses.length);
 
-// 高解像度対応レンダラー設定
+function setNextPose() {
+    lastPoseIndex = nextPoseIndex;
+    let newIndex;
+    do {
+        newIndex = Math.floor(Math.random() * poses.length);
+    } while (newIndex === lastPoseIndex);
+    nextPoseIndex = newIndex;
+}
+
 const render = Render.create({
     element: document.getElementById('game-container'),
     engine: engine,
@@ -152,7 +159,7 @@ const render = Render.create({
         height: baseHeight, 
         wireframes: false, 
         background: '#ffffff',
-        pixelRatio: ratio // ここで高DPIを有効化
+        pixelRatio: ratio
     }
 });
 
@@ -248,7 +255,9 @@ function spawnPerson(x) {
             render: { sprite: { texture: imgPath, xScale: scale, yScale: scale } }
         });
         Composite.add(world, person);
-        nextPoseIndex = Math.floor(Math.random() * poses.length);
+        
+        // --- 連続防止ランダムで次を決定 ---
+        setNextPose();
         currentRotation = 0; updateNextPreview();
         setTimeout(() => { canSpawn = true; }, 500);
     };
@@ -284,8 +293,9 @@ Events.on(engine, 'afterUpdate', () => {
 function restartGame() {
     Composite.clear(world, false); Composite.add(world, ground);
     isGameOver = false; baseScore = 0; currentStackScore = 0; displayScore = 0;
+    lastPoseIndex = -1; setNextPose(); 
     document.getElementById('game-over-screen').style.display = 'none';
-    updateUI(); Runner.run(runner, engine);
+    updateUI(); updateNextPreview(); Runner.run(runner, engine);
 }
 
 let isDragging = false;
