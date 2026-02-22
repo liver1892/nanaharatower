@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Human Tower Battle - Swing & Drop</title>
+    <title>Human Tower Battle - Pure Swing</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.19.0/matter.min.js"></script>
     <style>
         body { 
@@ -27,12 +27,6 @@
             display: flex; align-items: center; justify-content: center;
         }
         #swing-preview img { width: 100%; height: 100%; object-fit: contain; }
-        /* 落下位置ガイド */
-        #drop-guide {
-            position: absolute; top: 0; bottom: 0; width: 1px;
-            background: rgba(0, 0, 0, 0.1); border-left: 1px dashed rgba(0,0,0,0.2);
-            pointer-events: none; z-index: 10;
-        }
         
         #delivery-unit {
             position: absolute; width: 60px; height: 50px; left: -100px; top: 5px;
@@ -98,7 +92,6 @@
 <body>
 
 <div id="game-container">
-    <div id="drop-guide"></div>
     <div id="swing-preview"></div>
     <div id="delivery-unit">
         <img id="cargo-item" src="" alt="">
@@ -148,8 +141,8 @@ let currentStackScore = 0;
 let displayScore = 0;        
 let currentRotation = 0, canSpawn = true, isDelivering = false;
 
-// スイング用変数
-let swingPos = 0.5; // 0.0 to 1.0
+// スイング用
+let swingPos = 0.5; 
 let swingDir = 1;
 let swingSpeed = 0.015;
 
@@ -202,13 +195,11 @@ function updateNextPreview() {
     const deg = (currentRotation * 180) / Math.PI;
     document.getElementById('next-preview').innerHTML = `<img src="${poses[nextPoseIndex]}" style="width:75%; height:75%; object-fit:contain; transform: rotate(${deg}deg)">`;
     
-    // スイングプレビューの更新
     const swingContainer = document.getElementById('swing-preview');
     swingContainer.innerHTML = `<img src="${poses[nextPoseIndex]}" style="transform: rotate(${deg}deg)">`;
 }
 updateNextPreview();
 
-// スイングループ
 function animateSwing() {
     if (!isGameOver && canSpawn) {
         swingPos += swingSpeed * swingDir;
@@ -217,20 +208,14 @@ function animateSwing() {
 
         const x = swingPos * baseWidth;
         const swingContainer = document.getElementById('swing-preview');
-        const guide = document.getElementById('drop-guide');
         
-        // プレビューサイズ（見た目）
         const size = 65; 
         swingContainer.style.width = size + 'px';
         swingContainer.style.height = size + 'px';
         swingContainer.style.left = (x - size/2) + 'px';
         swingContainer.style.display = 'flex';
-        
-        guide.style.left = x + 'px';
-        guide.style.display = 'block';
     } else {
         document.getElementById('swing-preview').style.display = 'none';
-        document.getElementById('drop-guide').style.display = 'none';
     }
     requestAnimationFrame(animateSwing);
 }
@@ -353,10 +338,9 @@ function restartGame() {
     updateUI(); updateNextPreview(); Runner.run(runner, engine);
 }
 
-// タップイベントを spawnPerson に直結
 function onActionStart(e) {
     if (e.target.closest('button') || e.target.closest('.item-btn')) return;
-    spawnPerson(); // タップした位置に関わらず、今のスイング位置で落とす
+    spawnPerson();
 }
 
 render.canvas.addEventListener('mousedown', onActionStart);
