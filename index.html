@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Human Tower Battle - 遺骨 Edition</title>
+    <title>Human Tower Battle - Delivery Edition</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.19.0/matter.min.js"></script>
     <style>
         body { 
@@ -18,39 +18,85 @@
             box-shadow: 0 20px 50px rgba(0,0,0,0.5); border-radius: 8px; 
             background: #eceff1; max-width: 90vw; max-height: 55vh; touch-action: none;
         }
+        
+        /* --- デリバリー・アニメーション --- */
+        #delivery-bike {
+            position: absolute;
+            width: 80px; height: auto;
+            left: -100px; top: -10px; /* 初期位置は画面外 */
+            z-index: 50;
+            pointer-events: none;
+            display: none;
+        }
+        #delivery-bike img { width: 100%; height: auto; }
+        
+        /* バイクにくっつくアイテム */
+        #cargo-item {
+            position: absolute;
+            width: 30px; height: 30px;
+            right: -10px; bottom: 10px;
+            background: white; border-radius: 4px; border: 1px solid #ccc;
+        }
+
+        /* 落ちるアイテムのアニメーション */
+        .falling-item {
+            position: absolute;
+            width: 30px; height: 30px;
+            z-index: 45;
+            background: white; border-radius: 4px;
+            animation: fall-down 0.6s ease-in forwards;
+        }
+        @keyframes fall-down {
+            0% { transform: translateY(0); opacity: 1; }
+            90% { transform: translateY(200px); opacity: 1; }
+            100% { transform: translateY(220px); opacity: 0; }
+        }
+
+        /* 画面フラッシュ */
+        #effect-layer {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            pointer-events: none; z-index: 60; border-radius: 8px;
+        }
+        .flash { animation: flash-anim 0.5s ease-out; }
+        @keyframes flash-anim {
+            0% { background: rgba(255,255,255,0.8); }
+            100% { background: rgba(255,255,255,0); }
+        }
+
         #ui-layer {
             position: absolute; top: 0; left: 0; width: 100%; height: 100%;
             pointer-events: none; padding: 12px; box-sizing: border-box;
-            display: flex; justify-content: space-between;
+            display: flex; justify-content: space-between; z-index: 20;
         }
         .hud { background: rgba(0,0,0,0.7); padding: 8px 15px; border-radius: 10px; color: white; font-weight: bold; font-size: 14px; }
-        #next-preview { width: 60px; height: 60px; display: flex; align-items: center; justify-content: center; background: rgba(255,255,255,0.9); border-radius: 10px; margin-top: 5px; }
-        #next-preview img { max-width: 80%; max-height: 80%; transition: transform 0.2s; }
-
-        /* 操作UIエリア */
+        
         #bottom-ui { 
             width: 90%; display: flex; justify-content: center; align-items: center; 
             gap: 20px; margin-top: 15px; 
         }
         
-        /* 回転ボタン */
         .btn-rotate { 
             width: 100px; height: 100px; border-radius: 50%; border: none; background: #ff5252; color: white; 
             font-size: 22px; font-weight: bold; cursor: pointer; box-shadow: 0 5px #c62828;
-            -webkit-tap-highlight-color: transparent;
         }
-        .btn-rotate:active { box-shadow: none; transform: translateY(4px); }
 
-        /* アイテムリスト（縦に3つ並ぶ） */
         #item-list { display: flex; flex-direction: column; gap: 8px; }
         .item-btn {
             width: 140px; height: 50px; background: #455a64; border-radius: 8px; border: 2px solid #cfd8dc;
             display: flex; align-items: center; padding: 2px 8px; cursor: pointer; color: white;
-            box-shadow: 0 3px #263238; overflow: hidden; -webkit-tap-highlight-color: transparent;
+            box-shadow: 0 3px #263238; transition: all 0.2s;
         }
-        .item-btn:active { box-shadow: none; transform: translateY(2px); }
+        .item-btn.active { border-color: #ffeb3b; box-shadow: 0 0 10px #ffeb3b; }
+        .item-btn.error { animation: shake 0.3s; background: #b71c1c; }
+        
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            25% { transform: translateX(-5px); }
+            75% { transform: translateX(5px); }
+        }
+
         .item-btn img { width: 35px; height: 35px; object-fit: contain; margin-right: 8px; background: white; border-radius: 4px; }
-        .item-text { display: flex; flex-direction: column; justify-content: center; }
+        .item-text { display: flex; flex-direction: column; }
         .item-name { font-size: 11px; font-weight: bold; }
         .item-cost { font-size: 10px; color: #ffeb3b; }
 
@@ -64,25 +110,25 @@
 <body>
 
 <div id="game-container">
+    <div id="delivery-bike">
+        <img src="images/pose5.png" alt="ショージ">
+        <img id="cargo-item" src="" alt="">
+    </div>
+    
+    <div id="effect-layer"></div>
     <div id="ui-layer">
-        <div>
-            <div class="hud">SCORE: <span id="score">0</span></div>
-        </div>
-        <div style="text-align: right;">
-            <div class="hud">NEXT</div>
-            <div id="next-preview"></div>
-        </div>
+        <div class="hud">SCORE: <span id="score">0</span></div>
+        <div id="next-preview" style="width:60px; height:60px; background:rgba(255,255,255,0.9); border-radius:10px; display:flex; align-items:center; justify-content:center;"></div>
     </div>
     <div id="game-over-screen">
         <h1 style="font-size: 40px;">なんでぇ～</h1>
         <p style="font-size: 24px;">BEST SCORE: <span id="final-score">0</span></p>
-        <button style="padding: 12px 40px; font-size: 20px; border-radius: 30px; border: none; background: #4caf50; color: white; font-weight: bold; cursor: pointer;" onclick="restartGame()">もう1回</button>
+        <button style="padding: 12px 40px; font-size: 20px; border-radius: 30px; border: none; background: #4caf50; color: white;" onclick="restartGame()">もう1回</button>
     </div>
 </div>
 
 <div id="bottom-ui">
     <button class="btn-rotate" id="rotate-btn">回転</button>
-
     <div id="item-list">
         <div class="item-btn" id="item-clear">
             <img src="images/item1.png" alt="遺骨" onerror="this.src='https://cdn-icons-png.flaticon.com/512/2865/2865778.png'">
@@ -91,14 +137,8 @@
                 <span class="item-cost">消費: 500pt</span>
             </div>
         </div>
-        <div class="item-btn" style="opacity: 0.5; cursor: default;">
-            <div style="width:35px; height:35px; border:1px dashed #ccc; margin-right:8px;"></div>
-            <div class="item-text"><span class="item-name">???</span></div>
-        </div>
-        <div class="item-btn" style="opacity: 0.5; cursor: default;">
-            <div style="width:35px; height:35px; border:1px dashed #ccc; margin-right:8px;"></div>
-            <div class="item-text"><span class="item-name">???</span></div>
-        </div>
+        <div class="item-btn" style="opacity: 0.3;"><div style="width:35px;"></div><span class="item-name">???</span></div>
+        <div class="item-btn" style="opacity: 0.3;"><div style="width:35px;"></div><span class="item-name">???</span></div>
     </div>
 </div>
 
@@ -114,12 +154,9 @@ let isGameOver = false;
 let bestScoreInRound = 0; 
 let currentRotation = 0;
 let canSpawn = true;
+let isDelivering = false;
 
-const poses = [
-    'images/pose1.png', 'images/pose2.png', 'images/pose3.png',
-    'images/pose4.png', 'images/pose5.png', 'images/pose6.png',
-    'images/pose7.png', 'images/pose8.png', 'images/pose9.png'
-];
+const poses = ['images/pose1.png', 'images/pose2.png', 'images/pose3.png', 'images/pose4.png', 'images/pose5.png', 'images/pose6.png', 'images/pose7.png', 'images/pose8.png', 'images/pose9.png'];
 let nextPoseIndex = Math.floor(Math.random() * poses.length);
 
 const render = Render.create({
@@ -139,50 +176,107 @@ Composite.add(world, ground);
 
 function updateUI() {
     document.getElementById('score').innerText = bestScoreInRound;
+    const itemBtn = document.getElementById('item-clear');
+    if(bestScoreInRound >= 500 && !isDelivering) itemBtn.classList.add('active');
+    else itemBtn.classList.remove('active');
 }
 
 function updateNextPreview() {
     const previewContainer = document.getElementById('next-preview');
     const deg = (currentRotation * 180) / Math.PI;
-    previewContainer.innerHTML = `<img src="${poses[nextPoseIndex]}" style="transform: rotate(${deg}deg)">`;
+    previewContainer.innerHTML = `<img src="${poses[nextPoseIndex]}" style="width:80%; height:80%; object-fit:contain; transform: rotate(${deg}deg)">`;
 }
 updateNextPreview();
+
+// --- デリバリー演出関数 ---
+function startDelivery(itemImgSrc, onImpact) {
+    if (isDelivering) return;
+    isDelivering = true;
+    updateUI();
+
+    const bike = document.getElementById('delivery-bike');
+    const cargo = document.getElementById('cargo-item');
+    cargo.src = itemImgSrc;
+    bike.style.display = 'block';
+    
+    let pos = -100;
+    const speed = 4;
+    const targetDropX = screenWidth / 2 - 40;
+
+    const driveInterval = setInterval(() => {
+        pos += speed;
+        bike.style.left = pos + 'px';
+
+        // 中央に来た時にアイテムを落とす
+        if (Math.abs(pos - targetDropX) < speed / 2) {
+            dropItem(itemImgSrc, onImpact);
+        }
+
+        // 画面外に消えたら終了
+        if (pos > screenWidth + 100) {
+            clearInterval(driveInterval);
+            bike.style.display = 'none';
+            isDelivering = false;
+            updateUI();
+        }
+    }, 16);
+}
+
+function dropItem(imgSrc, onImpact) {
+    const container = document.getElementById('game-container');
+    const falling = document.createElement('img');
+    falling.src = imgSrc;
+    falling.className = 'falling-item';
+    falling.style.left = (screenWidth / 2 - 15) + 'px';
+    falling.style.top = '10px';
+    container.appendChild(falling);
+
+    // アニメーション終了（着地）に合わせて本発動
+    setTimeout(() => {
+        onImpact();
+        falling.remove();
+        // フラッシュエフェクト
+        const effectLayer = document.getElementById('effect-layer');
+        effectLayer.classList.remove('flash');
+        void effectLayer.offsetWidth;
+        effectLayer.classList.add('flash');
+    }, 600);
+}
+
+// アイテムボタンのイベント
+document.getElementById('item-clear').onclick = function() {
+    if (isGameOver || isDelivering) return;
+    if (bestScoreInRound >= 500) {
+        bestScoreInRound -= 500;
+        updateUI();
+
+        // バイク演出開始
+        const itemImg = this.querySelector('img').src;
+        startDelivery(itemImg, () => {
+            // 着地した時の効果：全パーツ削除
+            const allBodies = Composite.allBodies(world);
+            allBodies.forEach(body => {
+                if (body.label !== 'ground') Composite.remove(world, body);
+            });
+        });
+    } else {
+        this.classList.add('error');
+        setTimeout(() => this.classList.remove('error'), 300);
+    }
+};
 
 function rotate90() {
     currentRotation += Math.PI / 2;
     updateNextPreview();
 }
-document.getElementById('rotate-btn').addEventListener('touchstart', (e) => { e.preventDefault(); rotate90(); }, {passive: false});
-document.getElementById('rotate-btn').addEventListener('click', rotate90);
-
-// --- アイテム機能：ショージの遺骨 ---
-document.getElementById('item-clear').addEventListener('click', () => {
-    if (isGameOver) return;
-    if (bestScoreInRound >= 500) {
-        // スコアを500消費
-        bestScoreInRound -= 500;
-        updateUI();
-
-        // 地面以外の全オブジェクトを削除
-        const allBodies = Composite.allBodies(world);
-        allBodies.forEach(body => {
-            if (body.label !== 'ground') {
-                Composite.remove(world, body);
-            }
-        });
-    } else {
-        alert("スコアが足りないよ！");
-    }
-});
+document.getElementById('rotate-btn').onclick = rotate90;
 
 function spawnPerson(x) {
     if (isGameOver || !canSpawn) return;
     canSpawn = false; 
-
-    const imagePath = poses[nextPoseIndex];
+    const imgPath = poses[nextPoseIndex];
     const img = new Image();
-    img.src = imagePath;
-
+    img.src = imgPath;
     img.onload = () => {
         const targetArea = 4500; 
         const aspectRatio = img.width / img.height;
@@ -192,10 +286,9 @@ function spawnPerson(x) {
 
         const person = Bodies.rectangle(x, 60, targetWidth, targetHeight, {
             restitution: 0.1, friction: 0.9, angle: currentRotation,
-            render: { sprite: { texture: imagePath, xScale: scale, yScale: scale } }
+            render: { sprite: { texture: imgPath, xScale: scale, yScale: scale } }
         });
         Composite.add(world, person);
-        
         nextPoseIndex = Math.floor(Math.random() * poses.length);
         currentRotation = 0; 
         updateNextPreview();
@@ -207,13 +300,9 @@ Events.on(engine, 'afterUpdate', () => {
     if (isGameOver) return;
     const allBodies = Composite.allBodies(world);
     let tempScore = 0;
-    
     allBodies.forEach(body => {
         if (!body.isStatic) {
-            if (body.position.y > screenHeight + 60) {
-                gameOver();
-                return;
-            }
+            if (body.position.y > screenHeight + 60) { gameOver(); return; }
             const speed = Math.sqrt(body.velocity.x ** 2 + body.velocity.y ** 2);
             if (speed < 0.2) { 
                 const heightBonus = Math.max(0, Math.floor((screenHeight - 40 - body.position.y) / 10));
@@ -221,7 +310,6 @@ Events.on(engine, 'afterUpdate', () => {
             }
         }
     });
-
     if (tempScore > bestScoreInRound) {
         bestScoreInRound = tempScore;
         updateUI();
@@ -249,19 +337,16 @@ let isDragging = false;
 function handleStart(e) { if (e.target.closest('button') || e.target.closest('.item-btn')) return; isDragging = true; }
 function handleEnd(e) {
     if (!isDragging || isGameOver || e.target.closest('button') || e.target.closest('.item-btn')) return;
-    if (e.cancelable) e.preventDefault();
     const rect = render.canvas.getBoundingClientRect();
     const clientX = e.changedTouches ? e.changedTouches[0].clientX : e.clientX;
     const mouseX = (clientX - rect.left) * (screenWidth / rect.width);
     spawnPerson(mouseX);
     isDragging = false;
 }
-
 render.canvas.addEventListener('mousedown', handleStart);
 window.addEventListener('mouseup', handleEnd);
-render.canvas.addEventListener('touchstart', handleStart, {passive: true});
-window.addEventListener('touchend', handleEnd, {passive: false});
-
+render.canvas.addEventListener('touchstart', handleStart);
+window.addEventListener('touchend', handleEnd);
 </script>
 </body>
 </html>
