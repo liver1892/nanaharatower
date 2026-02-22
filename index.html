@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Human Tower Battle - Fixed Animation Order</title>
+    <title>Human Tower Battle - High DPI Edition</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.19.0/matter.min.js"></script>
     <style>
         body { 
@@ -18,6 +18,8 @@
             box-shadow: 0 10px 30px rgba(0,0,0,0.5); border-radius: 8px; 
             background: #eceff1; max-width: 95vw; max-height: 65vh;
             touch-action: none; display: block;
+            /* 高解像度時のボヤけを防ぐ追加設定 */
+            image-rendering: -webkit-optimize-contrast;
         }
         
         #delivery-unit {
@@ -122,7 +124,11 @@
 const { Engine, Render, Runner, Bodies, Composite, Events } = Matter;
 let engine = Engine.create();
 let world = engine.world;
-const screenWidth = 360, screenHeight = 550; 
+
+// 基本サイズ
+const baseWidth = 360, baseHeight = 550;
+// デバイスピクセル比を取得（高解像度対応）
+const ratio = window.devicePixelRatio || 1;
 
 let isGameOver = false;
 let baseScore = 0;           
@@ -137,17 +143,24 @@ const poses = [
 ];
 let nextPoseIndex = Math.floor(Math.random() * poses.length);
 
+// 高解像度対応レンダラー設定
 const render = Render.create({
     element: document.getElementById('game-container'),
     engine: engine,
-    options: { width: screenWidth, height: screenHeight, wireframes: false, background: '#ffffff' }
+    options: { 
+        width: baseWidth, 
+        height: baseHeight, 
+        wireframes: false, 
+        background: '#ffffff',
+        pixelRatio: ratio // ここで高DPIを有効化
+    }
 });
 
 Render.run(render);
 let runner = Runner.create();
 Runner.run(runner, engine);
 
-const ground = Bodies.rectangle(screenWidth / 2, screenHeight - 20, screenWidth * 0.7, 40, { 
+const ground = Bodies.rectangle(baseWidth / 2, baseHeight - 20, baseWidth * 0.7, 40, { 
     isStatic: true, label: 'ground', render: { fillStyle: '#263238' } 
 });
 Composite.add(world, ground);
@@ -170,45 +183,41 @@ function startDelivery(itemImgSrc, onImpact) {
     isDelivering = true; updateUI();
     const unit = document.getElementById('delivery-unit'), cargo = document.getElementById('cargo-item');
     cargo.src = itemImgSrc; cargo.style.display = 'block'; unit.style.display = 'block';
-    let pos = -100, speed = 2.5, targetDropX = screenWidth / 2 - 30, dropped = false;
+    let pos = -100, speed = 2.5, targetDropX = baseWidth / 2 - 30, dropped = false;
     const driveInterval = setInterval(() => {
         pos += speed; unit.style.left = pos + 'px';
         if (!dropped && pos >= targetDropX) { dropped = true; cargo.style.display = 'none'; dropItem(itemImgSrc, onImpact); }
-        if (pos > screenWidth + 100) { clearInterval(driveInterval); unit.style.display = 'none'; isDelivering = false; updateUI(); }
+        if (pos > baseWidth + 100) { clearInterval(driveInterval); unit.style.display = 'none'; isDelivering = false; updateUI(); }
     }, 16);
 }
 
 function dropItem(imgSrc, onImpact) {
     const container = document.getElementById('game-container'), falling = document.createElement('img');
     falling.src = imgSrc; falling.className = 'falling-item'; 
-    falling.style.left = (screenWidth / 2 - 12) + 'px'; 
+    falling.style.left = (baseWidth / 2 - 12) + 'px'; 
     falling.style.top = '25px';
     container.appendChild(falling);
     setTimeout(() => { 
-        onImpact(); // ここで消去とスコア確定を実行
+        onImpact(); 
         falling.remove();
         const el = document.getElementById('effect-layer'); el.classList.remove('flash'); void el.offsetWidth; el.classList.add('flash');
     }, 1000); 
 }
 
-// --- アイテム使用：演出後に消去するよう修正 ---
 document.getElementById('item-clear').onclick = function(e) {
     e.stopPropagation();
     if (isGameOver || isDelivering) return;
     
     if (displayScore >= 500) {
-        // 先にポイント消費を反映（表示だけ確定させる）
         baseScore = displayScore - 500;
         currentStackScore = 0;
         displayScore = baseScore;
         updateUI();
 
-        // バイク演出。完了時（インパクト時）にパーツを消す
         startDelivery(this.querySelector('img').src, () => {
             Composite.allBodies(world).forEach(b => { 
                 if (b.label !== 'ground') Composite.remove(world, b); 
             });
-            // 消去後に確実にスコアをリセット
             currentStackScore = 0;
             displayScore = baseScore;
             updateUI();
@@ -254,20 +263,18 @@ Events.on(engine, 'afterUpdate', () => {
         currentStackScore = 0;
     } else {
         bodies.forEach(body => {
-            if (body.position.y > screenHeight + 60) { 
+            if (body.position.y > baseHeight + 60) { 
                 isGameOver = true; Runner.stop(runner); 
                 document.getElementById('final-score').innerText = displayScore; 
                 document.getElementById('game-over-screen').style.display = 'flex'; 
                 return; 
             }
             if (Math.sqrt(body.velocity.x**2 + body.velocity.y**2) < 0.2) {
-                tempStackScore += (100 + Math.max(0, Math.floor((screenHeight - 40 - body.position.y) / 10)) * 10);
+                tempStackScore += (100 + Math.max(0, Math.floor((baseHeight - 40 - body.position.y) / 10)) * 10);
             }
         });
         if (tempStackScore > currentStackScore) currentStackScore = tempStackScore;
     }
-
-    // デリバリー中（アイテム待ち）の時は、スコアを増やさないようにロック
     if (!isDelivering) {
         displayScore = baseScore + currentStackScore;
     }
@@ -290,7 +297,7 @@ function onActionEnd(e) {
     if (!isDragging || isGameOver) return;
     const rect = render.canvas.getBoundingClientRect();
     const clientX = e.changedTouches ? e.changedTouches[0].clientX : e.clientX;
-    const x = (clientX - rect.left) * (screenWidth / rect.width);
+    const x = (clientX - rect.left) * (baseWidth / rect.width);
     spawnPerson(x);
     isDragging = false;
 }
