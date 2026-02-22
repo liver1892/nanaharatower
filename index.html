@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Human Tower Battle - Score Reset Fixed</title>
+    <title>Human Tower Battle - Slow Delivery Edition</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.19.0/matter.min.js"></script>
     <style>
         body { 
@@ -21,6 +21,7 @@
             touch-action: none;
         }
         
+        /* --- デリバリーユニット --- */
         #delivery-unit {
             position: absolute; width: 60px; height: 50px; left: -100px; top: -15px;
             z-index: 100; pointer-events: none; display: none;
@@ -28,10 +29,11 @@
         #bike-img { width: 55px; height: auto; position: absolute; left: 0; bottom: 0; z-index: 2; }
         #cargo-item { position: absolute; width: 20px; height: 20px; left: 5px; top: 8px; background: white; border-radius: 3px; z-index: 1; }
 
+        /* アイテム落下：時間を0.6sから1.0sへ低速化 */
         .falling-item {
             position: absolute; width: 25px; height: 25px; z-index: 90;
             background: white; border-radius: 4px; border: 1px solid #ccc;
-            animation: fall-down 0.6s ease-in forwards;
+            animation: fall-down 1.0s ease-in forwards;
         }
         @keyframes fall-down {
             0% { transform: translateY(0) rotate(0deg); opacity: 1; }
@@ -68,7 +70,6 @@
         }
         .item-btn.active { border-color: #ffeb3b; box-shadow: 0 0 8px #ffeb3b; }
         .item-btn.error { animation: shake 0.3s; background: #b71c1c; }
-        @keyframes shake { 0%, 100% { transform: translateX(0); } 25% { transform: translateX(-5px); } 75% { transform: translateX(5px); } }
         .item-btn img { width: 28px; height: 28px; object-fit: contain; margin-right: 6px; background: white; border-radius: 3px; }
         .item-name { font-size: 10px; font-weight: bold; line-height: 1.1; }
         .item-cost { font-size: 9px; color: #ffeb3b; }
@@ -123,11 +124,8 @@ let engine = Engine.create();
 let world = engine.world;
 const screenWidth = 360, screenHeight = 550; 
 
-// スコア管理用
 let isGameOver = false;
-let baseScore = 0;           // アイテム使用時に「確定」させるスコア
-let currentStackScore = 0;   // 今積んでいるパーツだけのスコア
-let displayScore = 0;        // 画面に表示する合計スコア
+let baseScore = 0, currentStackScore = 0, displayScore = 0;
 let currentRotation = 0, canSpawn = true, isDelivering = false;
 
 const poses = ['images/pose1.png', 'images/pose2.png', 'images/pose3.png', 'images/pose4.png', 'images/pose5.png', 'images/pose6.png', 'images/pose7.png', 'images/pose8.png', 'images/pose9.png'];
@@ -156,43 +154,71 @@ function updateNextPreview() {
 }
 updateNextPreview();
 
+// --- デリバリー演出（低速版） ---
 function startDelivery(itemImgSrc, onImpact) {
     if (isDelivering) return;
-    isDelivering = true; updateUI();
+    isDelivering = true; 
+    updateUI();
+
     const unit = document.getElementById('delivery-unit'), cargo = document.getElementById('cargo-item');
     cargo.src = itemImgSrc; cargo.style.display = 'block'; unit.style.display = 'block';
-    let pos = -100, speed = 5, targetDropX = screenWidth / 2 - 30, dropped = false;
+    
+    let pos = -100;
+    const speed = 2.5; // スピードを5.0から2.5へ半減
+    const targetDropX = screenWidth / 2 - 30;
+    let dropped = false;
+
     const driveInterval = setInterval(() => {
-        pos += speed; unit.style.left = pos + 'px';
-        if (!dropped && pos >= targetDropX) { dropped = true; cargo.style.display = 'none'; dropItem(itemImgSrc, onImpact); }
-        if (pos > screenWidth + 100) { clearInterval(driveInterval); unit.style.display = 'none'; isDelivering = false; updateUI(); }
+        pos += speed;
+        unit.style.left = pos + 'px';
+
+        if (!dropped && pos >= targetDropX) {
+            dropped = true;
+            cargo.style.display = 'none';
+            dropItem(itemImgSrc, onImpact);
+        }
+
+        if (pos > screenWidth + 100) {
+            clearInterval(driveInterval);
+            unit.style.display = 'none';
+            isDelivering = false;
+            updateUI();
+        }
     }, 16);
 }
 
 function dropItem(imgSrc, onImpact) {
     const container = document.getElementById('game-container'), falling = document.createElement('img');
-    falling.src = imgSrc; falling.className = 'falling-item'; falling.style.left = (screenWidth / 2 - 12) + 'px'; falling.style.top = '5px';
+    falling.src = imgSrc; falling.className = 'falling-item'; 
+    falling.style.left = (screenWidth / 2 - 12) + 'px'; 
+    falling.style.top = '5px';
     container.appendChild(falling);
+
+    // 落下アニメーション(1.0s)が終わるのを待ってから発動
     setTimeout(() => { 
-        onImpact(); falling.remove();
-        const el = document.getElementById('effect-layer'); el.classList.remove('flash'); void el.offsetWidth; el.classList.add('flash');
-    }, 600);
+        onImpact(); 
+        falling.remove();
+        const el = document.getElementById('effect-layer'); 
+        el.classList.remove('flash'); 
+        void el.offsetWidth; 
+        el.classList.add('flash');
+    }, 1000); 
 }
 
-// アイテム使用
 document.getElementById('item-clear').onclick = function() {
     if (isGameOver || isDelivering) return;
     if (displayScore >= 500) {
-        // 現在の合計スコアから500を引いて、それを新しいベーススコアにする
         baseScore = displayScore - 500;
         currentStackScore = 0;
         displayScore = baseScore;
         updateUI();
-
         startDelivery(this.querySelector('img').src, () => {
             Composite.allBodies(world).forEach(b => { if (b.label !== 'ground') Composite.remove(world, b); });
         });
-    } else { this.classList.add('error'); setTimeout(() => this.classList.remove('error'), 300); }
+    } else { 
+        this.classList.add('error'); 
+        setTimeout(() => this.classList.remove('error'), 300); 
+    }
 };
 
 document.getElementById('rotate-btn').onclick = () => { currentRotation += Math.PI / 2; updateNextPreview(); };
@@ -228,11 +254,7 @@ Events.on(engine, 'afterUpdate', () => {
             }
         }
     });
-
-    // 今の積み上げスコアが更新されたら、表示スコアも更新
-    if (tempStackScore > currentStackScore) {
-        currentStackScore = tempStackScore;
-    }
+    if (tempStackScore > currentStackScore) currentStackScore = tempStackScore;
     displayScore = baseScore + currentStackScore;
     updateUI();
 });
