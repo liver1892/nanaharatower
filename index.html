@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Human Tower Battle - Advanced Physics Edition</title>
+    <title>Human Tower Battle - Balanced Physics</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.19.0/matter.min.js"></script>
     <style>
         body { 
@@ -120,7 +120,7 @@
 </div>
 
 <script>
-const { Engine, Render, Runner, Bodies, Composite, Events, Vertices } = Matter;
+const { Engine, Render, Runner, Bodies, Composite, Events, Body } = Matter;
 let engine = Engine.create();
 let world = engine.world;
 
@@ -133,7 +133,6 @@ let currentStackScore = 0;
 let displayScore = 0;        
 let currentRotation = 0, canSpawn = true, isDelivering = false;
 
-// --- ポーズ管理 ---
 const poses = [
     'images/pose1.png', 'images/pose2.png', 'images/pose3.png', 'images/pose4.png',
     'images/pose5.png', 'images/pose6.png', 'images/pose7.png', 'images/pose8.png',
@@ -214,13 +213,11 @@ function dropItem(imgSrc, onImpact) {
 document.getElementById('item-clear').onclick = function(e) {
     e.stopPropagation();
     if (isGameOver || isDelivering) return;
-    
     if (displayScore >= 500) {
         baseScore = displayScore - 500;
         currentStackScore = 0;
         displayScore = baseScore;
         updateUI();
-
         startDelivery(this.querySelector('img').src, () => {
             Composite.allBodies(world).forEach(b => { 
                 if (b.label !== 'ground') Composite.remove(world, b); 
@@ -252,30 +249,19 @@ function spawnPerson(x) {
         const jitter = (Math.random() - 0.5) * 12; 
         const spawnX = x + jitter;
 
-        // --- パーツの形に合わせた物理判定の生成 ---
-        let body;
-        const options = {
-            restitution: 0.05, // 跳ね返りを抑えて難しく
-            friction: 0.9,     // 摩擦を強くして「引っかかる」ように
+        // --- 遊びやすさを重視した物理判定 ---
+        // 四角形をベースにしつつ、chamfer（角丸）を設定
+        // これにより、ピタッと重なりやすく、かつ端っこではリアルに滑る挙動になります
+        const body = Bodies.rectangle(spawnX, 60, w, h, {
+            chamfer: { radius: [w*0.1, w*0.1, w*0.1, w*0.1] }, // 角を10%丸める
+            restitution: 0.1, 
+            friction: 0.6,     // ほどよい摩擦
+            frictionAir: 0.03, // 落下中の揺れを少し抑える
+            angle: currentRotation,
             render: { sprite: { texture: imgPath, xScale: scale, yScale: scale } }
-        };
+        });
 
-        // アスペクト比やポーズに応じて、四角形以外の判定を採用する
-        if (aspectRatio > 1.4) {
-            // 横長のポーズは「台形」にして左右を滑りやすく
-            body = Bodies.trapezoid(spawnX, 60, w, h, 0.4, options);
-        } else if (aspectRatio < 0.7) {
-            // 縦長のポーズは「逆台形」にして不安定に
-            body = Bodies.trapezoid(spawnX, 60, w, h, -0.3, options);
-        } else {
-            // 中間のポーズは「六角形」にして、角での踏ん張りと転がりやすさを両立
-            body = Bodies.polygon(spawnX, 60, 6, w/2, options);
-        }
-
-        // 回転を適用
-        Matter.Body.setAngle(body, currentRotation);
         Composite.add(world, body);
-        
         setNextPose();
         currentRotation = 0; updateNextPreview();
         setTimeout(() => { canSpawn = true; }, 500);
