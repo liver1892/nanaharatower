@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Human Tower Battle - Balanced Physics</title>
+    <title>Human Tower Battle - Swing & Drop</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.19.0/matter.min.js"></script>
     <style>
         body { 
@@ -19,6 +19,19 @@
             background: #eceff1; max-width: 95vw; max-height: 65vh;
             touch-action: none; display: block;
             image-rendering: -webkit-optimize-contrast;
+        }
+
+        /* スイング中のプレビューパーツ */
+        #swing-preview {
+            position: absolute; top: 30px; left: 0; pointer-events: none; z-index: 50;
+            display: flex; align-items: center; justify-content: center;
+        }
+        #swing-preview img { width: 100%; height: 100%; object-fit: contain; }
+        /* 落下位置ガイド */
+        #drop-guide {
+            position: absolute; top: 0; bottom: 0; width: 1px;
+            background: rgba(0, 0, 0, 0.1); border-left: 1px dashed rgba(0,0,0,0.2);
+            pointer-events: none; z-index: 10;
         }
         
         #delivery-unit {
@@ -85,6 +98,8 @@
 <body>
 
 <div id="game-container">
+    <div id="drop-guide"></div>
+    <div id="swing-preview"></div>
     <div id="delivery-unit">
         <img id="cargo-item" src="" alt="">
         <img id="bike-img" src="images/pose5.png" alt="ショージ">
@@ -132,6 +147,11 @@ let baseScore = 0;
 let currentStackScore = 0;   
 let displayScore = 0;        
 let currentRotation = 0, canSpawn = true, isDelivering = false;
+
+// スイング用変数
+let swingPos = 0.5; // 0.0 to 1.0
+let swingDir = 1;
+let swingSpeed = 0.015;
 
 const poses = [
     'images/pose1.png', 'images/pose2.png', 'images/pose3.png', 'images/pose4.png',
@@ -181,8 +201,40 @@ function updateUI() {
 function updateNextPreview() {
     const deg = (currentRotation * 180) / Math.PI;
     document.getElementById('next-preview').innerHTML = `<img src="${poses[nextPoseIndex]}" style="width:75%; height:75%; object-fit:contain; transform: rotate(${deg}deg)">`;
+    
+    // スイングプレビューの更新
+    const swingContainer = document.getElementById('swing-preview');
+    swingContainer.innerHTML = `<img src="${poses[nextPoseIndex]}" style="transform: rotate(${deg}deg)">`;
 }
 updateNextPreview();
+
+// スイングループ
+function animateSwing() {
+    if (!isGameOver && canSpawn) {
+        swingPos += swingSpeed * swingDir;
+        if (swingPos >= 0.9) swingDir = -1;
+        if (swingPos <= 0.1) swingDir = 1;
+
+        const x = swingPos * baseWidth;
+        const swingContainer = document.getElementById('swing-preview');
+        const guide = document.getElementById('drop-guide');
+        
+        // プレビューサイズ（見た目）
+        const size = 65; 
+        swingContainer.style.width = size + 'px';
+        swingContainer.style.height = size + 'px';
+        swingContainer.style.left = (x - size/2) + 'px';
+        swingContainer.style.display = 'flex';
+        
+        guide.style.left = x + 'px';
+        guide.style.display = 'block';
+    } else {
+        document.getElementById('swing-preview').style.display = 'none';
+        document.getElementById('drop-guide').style.display = 'none';
+    }
+    requestAnimationFrame(animateSwing);
+}
+animateSwing();
 
 function startDelivery(itemImgSrc, onImpact) {
     if (isDelivering) return;
@@ -237,26 +289,24 @@ document.getElementById('rotate-btn').onclick = (e) => {
     currentRotation += Math.PI / 2; updateNextPreview(); 
 };
 
-function spawnPerson(x) {
+function spawnPerson() {
     if (isGameOver || !canSpawn) return;
     canSpawn = false; 
+    
+    const spawnX = swingPos * baseWidth;
     const imgPath = poses[nextPoseIndex], img = new Image();
     img.src = imgPath;
+    
     img.onload = () => {
         const targetArea = 4500, aspectRatio = img.width / img.height;
         const h = Math.sqrt(targetArea / aspectRatio), w = h * aspectRatio;
         const scale = w / img.width;
-        const jitter = (Math.random() - 0.5) * 12; 
-        const spawnX = x + jitter;
 
-        // --- 遊びやすさを重視した物理判定 ---
-        // 四角形をベースにしつつ、chamfer（角丸）を設定
-        // これにより、ピタッと重なりやすく、かつ端っこではリアルに滑る挙動になります
         const body = Bodies.rectangle(spawnX, 60, w, h, {
-            chamfer: { radius: [w*0.1, w*0.1, w*0.1, w*0.1] }, // 角を10%丸める
+            chamfer: { radius: [w*0.1, w*0.1, w*0.1, w*0.1] },
             restitution: 0.1, 
-            friction: 0.6,     // ほどよい摩擦
-            frictionAir: 0.03, // 落下中の揺れを少し抑える
+            friction: 0.6,
+            frictionAir: 0.03,
             angle: currentRotation,
             render: { sprite: { texture: imgPath, xScale: scale, yScale: scale } }
         });
@@ -303,23 +353,14 @@ function restartGame() {
     updateUI(); updateNextPreview(); Runner.run(runner, engine);
 }
 
-let isDragging = false;
+// タップイベントを spawnPerson に直結
 function onActionStart(e) {
     if (e.target.closest('button') || e.target.closest('.item-btn')) return;
-    isDragging = true;
+    spawnPerson(); // タップした位置に関わらず、今のスイング位置で落とす
 }
-function onActionEnd(e) {
-    if (!isDragging || isGameOver) return;
-    const rect = render.canvas.getBoundingClientRect();
-    const clientX = e.changedTouches ? e.changedTouches[0].clientX : e.clientX;
-    const x = (clientX - rect.left) * (baseWidth / rect.width);
-    spawnPerson(x);
-    isDragging = false;
-}
+
 render.canvas.addEventListener('mousedown', onActionStart);
-window.addEventListener('mouseup', onActionEnd);
 render.canvas.addEventListener('touchstart', onActionStart, {passive: true});
-window.addEventListener('touchend', onActionEnd);
 </script>
 </body>
 </html>
