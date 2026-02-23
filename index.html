@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Human Tower Battle - Sushi Trap</title>
+    <title>Human Tower Battle - Fixed Sushi</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.19.0/matter.min.js"></script>
     <style>
         body { 
@@ -13,32 +13,28 @@
             height: 100vh; position: fixed; width: 100%;
             user-select: none; -webkit-user-select: none;
         }
-        #game-container { position: relative; margin-top: 15px; overflow: visible; }
+        #game-container { position: relative; margin-top: 15px; }
         canvas { 
             box-shadow: 0 10px 30px rgba(0,0,0,0.5); border-radius: 8px; 
-            background: #eceff1; max-width: 95vw; max-height: 65vh;
+            background: #eceff1; width: 360px; height: 550px;
             touch-action: none; display: block;
         }
         #swing-preview {
             position: absolute; top: 30px; left: 0; pointer-events: none; z-index: 50;
             display: flex; align-items: center; justify-content: center;
         }
-        #swing-preview img { width: 100%; height: 100%; object-fit: contain; }
+        #swing-preview img { width: 65px; height: 65px; object-fit: contain; }
         #delivery-unit {
             position: absolute; width: 60px; height: 50px; left: -100px; top: 5px;
             z-index: 100; pointer-events: none; display: none;
         }
-        #bike-img { width: 55px; height: auto; position: absolute; left: 0; bottom: 0; z-index: 2; }
-        #cargo-item { position: absolute; width: 20px; height: 20px; left: 5px; top: 8px; background: white; border-radius: 3px; z-index: 1; }
-        .falling-item {
-            position: absolute; width: 25px; height: 25px; z-index: 90;
-            background: white; border-radius: 4px; border: 1px solid #ccc;
-            animation: fall-down 1.0s ease-in forwards;
+        #bike-img { width: 55px; height: auto; position: absolute; left: 0; bottom: 0; }
+        #cargo-item { position: absolute; width: 20px; height: 20px; left: 5px; top: 8px; background: white; border-radius: 3px; }
+        #sushi-timer {
+            position: absolute; top: 70px; left: 50%; transform: translateX(-50%);
+            background: #ff5252; color: white; padding: 4px 15px; border-radius: 20px;
+            font-size: 14px; font-weight: bold; display: none; z-index: 150;
         }
-        @keyframes fall-down { 0% { transform: translateY(0) rotate(0deg); opacity: 1; } 100% { transform: translateY(300px) rotate(360deg); opacity: 0; } }
-        #effect-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 110; border-radius: 8px; }
-        .flash { animation: flash-anim 0.4s ease-out; }
-        @keyframes flash-anim { 0% { background: rgba(255,255,255,0.9); } 100% { background: rgba(255,255,255,0); } }
         #ui-layer {
             position: absolute; top: 0; left: 0; width: 100%; height: 100%;
             pointer-events: none; padding: 10px; box-sizing: border-box;
@@ -46,29 +42,20 @@
         }
         .hud { 
             background: rgba(0,0,0,0.7); padding: 5px 12px; border-radius: 8px; 
-            color: white; font-weight: bold; font-size: 12px; display: inline-block;
-        }
-        #sushi-timer {
-            position: absolute; top: 60px; left: 50%; transform: translateX(-50%);
-            background: #ff5252; color: white; padding: 5px 15px; border-radius: 20px;
-            font-size: 14px; font-weight: bold; display: none; z-index: 150;
+            color: white; font-weight: bold; font-size: 12px; height: fit-content;
         }
         #bottom-ui { width: 95%; display: flex; justify-content: center; align-items: center; gap: 15px; margin-top: 10px; }
         .btn-rotate { 
             width: 75px; height: 75px; border-radius: 50%; border: none; background: #ff5252; color: white; 
             font-size: 16px; font-weight: bold; cursor: pointer; box-shadow: 0 4px #c62828;
-            -webkit-tap-highlight-color: transparent;
         }
         #item-list { display: flex; flex-direction: column; gap: 5px; }
         .item-btn {
             width: 140px; height: 42px; background: #455a64; border-radius: 6px; border: 1.5px solid #cfd8dc;
             display: flex; align-items: center; padding: 0 8px; cursor: pointer; color: white;
-            box-shadow: 0 2px #263238; -webkit-tap-highlight-color: transparent;
         }
-        .item-btn.active { border-color: #00e5ff; box-shadow: 0 0 12px #00e5ff; background: #546e7a; }
+        .item-btn.active { border-color: #00e5ff; box-shadow: 0 0 12px #00e5ff; }
         .item-btn img { width: 28px; height: 28px; object-fit: contain; margin-right: 6px; background: white; border-radius: 3px; }
-        .item-name { font-size: 12px; font-weight: bold; }
-        .item-cost { font-size: 9px; color: #cfd8dc; }
         #game-over-screen {
             position: absolute; top: 0; left: 0; width: 100%; height: 100%;
             background: rgba(0,0,0,0.85); display: none; flex-direction: column; align-items: center; justify-content: center;
@@ -81,19 +68,18 @@
 <div id="game-container">
     <div id="swing-preview"></div>
     <div id="delivery-unit">
-        <img id="cargo-item" src="" alt="">
-        <img id="bike-img" src="images/pose5.png" alt="ショージ">
+        <img id="cargo-item" src="">
+        <img id="bike-img" src="images/pose5.png">
     </div>
-    <div id="sushi-timer">穴が空くまで: <span id="timer-count">5</span></div>
-    <div id="effect-layer"></div>
+    <div id="sushi-timer">穴まで: <span id="timer-count">5</span></div>
     <div id="ui-layer">
         <div class="hud">SCORE: <span id="score">0</span></div>
-        <div class="hud" style="text-align: right;">NEXT<br><div id="next-preview" style="width:40px; height:40px; margin-top:3px; display:flex; align-items:center; justify-content:center;"></div></div>
+        <div class="hud" style="text-align: center;">NEXT<div id="next-preview" style="width:40px; height:40px; display:flex; align-items:center; justify-content:center;"></div></div>
     </div>
     <div id="game-over-screen">
-        <h1 style="color:#ff5252;">なんでぇ～</h1>
+        <h1 style="color:#ff5252; margin:0;">なんでぇ～</h1>
         <p>BEST: <span id="final-score">0</span></p>
-        <button style="padding: 12px 40px; border-radius: 30px; border: none; background: #4caf50; color: white; font-size: 18px;" onclick="restartGame()">もう1回</button>
+        <button style="padding: 10px 30px; border-radius: 20px; border: none; background: #4caf50; color: white; font-weight: bold;" onclick="location.reload()">もう1回</button>
     </div>
 </div>
 
@@ -101,30 +87,24 @@
     <button class="btn-rotate" id="rotate-btn">回転</button>
     <div id="item-list">
         <div class="item-btn" id="item-clear">
-            <img src="images/item1.png" alt="遺骨" onerror="this.src='https://cdn-icons-png.flaticon.com/512/2865/2865778.png'">
-            <div><div class="item-name">ショージの遺骨</div><div class="item-cost">消費: 500pt</div></div>
+            <img src="images/item1.png" onerror="this.src='https://cdn-icons-png.flaticon.com/512/2865/2865778.png'">
+            <div><div style="font-size:11px; font-weight:bold;">ショージの遺骨</div><div style="font-size:9px; color:#cfd8dc;">500pt</div></div>
         </div>
         <div class="item-btn" id="item-sushi">
-            <img src="images/item2.png" alt="寿司" onerror="this.src='https://cdn-icons-png.flaticon.com/512/2252/2252430.png'">
-            <div><div class="item-name">特上寿司</div><div class="item-cost">消費: 1000pt</div></div>
+            <img src="images/item2.png" onerror="this.src='https://cdn-icons-png.flaticon.com/512/2252/2252430.png'">
+            <div><div style="font-size:11px; font-weight:bold;">特上寿司</div><div style="font-size:9px; color:#cfd8dc;">1000pt</div></div>
         </div>
     </div>
 </div>
 
 <script>
 const { Engine, Render, Runner, Bodies, Composite, Events, Body } = Matter;
-let engine = Engine.create();
-let world = engine.world;
+let engine = Engine.create(), world = engine.world;
 const baseWidth = 360, baseHeight = 550;
 
-let isGameOver = false;
-let displayScore = 0;
-let currentRotation = 0, canSpawn = true, isDelivering = false;
+let isGameOver = false, displayScore = 0, currentRotation = 0, canSpawn = true, isDelivering = false;
 let swingPos = 0.5, swingDir = 1, swingSpeed = 0.015;
-
-// 寿司ギミック用
-let sushiActive = false;
-let sushiCounter = 0;
+let sushiActive = false, sushiCounter = 0;
 
 const poses = ['images/pose1.png','images/pose2.png','images/pose3.png','images/pose4.png','images/pose5.png','images/pose6.png','images/pose7.png','images/pose8.png','images/pose9.png','images/pose10.png','images/pose11.png','images/pose12.png'];
 let lastPoseIndex = -1, nextPoseIndex = -1;
@@ -145,23 +125,21 @@ Render.run(render);
 let runner = Runner.create();
 Runner.run(runner, engine);
 
-// 土台作成関数
-function createGround(type = 'normal') {
-    Composite.allBodies(world).forEach(b => { if (b.label === 'ground' || b.label === 'ground-side') Composite.remove(world, b); });
-    if (type === 'normal') {
-        const g = Bodies.rectangle(baseWidth / 2, baseHeight - 20, baseWidth * 0.7, 40, { isStatic: true, label: 'ground', render: { fillStyle: '#263238' } });
-        Composite.add(world, g);
-    } else if (type === 'full') {
-        const g = Bodies.rectangle(baseWidth / 2, baseHeight - 20, baseWidth, 40, { isStatic: true, label: 'ground', render: { fillStyle: '#ffc107' } });
-        Composite.add(world, g);
-    } else if (type === 'hole') {
+// 土台切り替え
+function updateGround(mode) {
+    Composite.allBodies(world).forEach(b => { if (b.label.includes('ground')) Composite.remove(world, b); });
+    if (mode === 'normal') {
+        Composite.add(world, Bodies.rectangle(baseWidth/2, baseHeight-20, baseWidth*0.7, 40, { isStatic: true, label: 'ground', render: { fillStyle: '#263238' } }));
+    } else if (mode === 'full') {
+        Composite.add(world, Bodies.rectangle(baseWidth/2, baseHeight-20, baseWidth, 40, { isStatic: true, label: 'ground-full', render: { fillStyle: '#ffc107' } }));
+    } else if (mode === 'hole') {
         const sideW = baseWidth * 0.2;
-        const left = Bodies.rectangle(sideW / 2, baseHeight - 20, sideW, 40, { isStatic: true, label: 'ground-side', render: { fillStyle: '#b71c1c' } });
-        const right = Bodies.rectangle(baseWidth - sideW / 2, baseHeight - 20, sideW, 40, { isStatic: true, label: 'ground-side', render: { fillStyle: '#b71c1c' } });
+        const left = Bodies.rectangle(sideW/2, baseHeight-20, sideW, 40, { isStatic: true, label: 'ground-hole', render: { fillStyle: '#b71c1c' } });
+        const right = Bodies.rectangle(baseWidth - sideW/2, baseHeight-20, sideW, 40, { isStatic: true, label: 'ground-hole', render: { fillStyle: '#b71c1c' } });
         Composite.add(world, [left, right]);
     }
 }
-createGround();
+updateGround('normal');
 
 function updateUI() {
     document.getElementById('score').innerText = displayScore;
@@ -172,109 +150,85 @@ function updateUI() {
 function updateNextPreview() {
     const deg = (currentRotation * 180) / Math.PI;
     document.getElementById('next-preview').innerHTML = `<img src="${poses[nextPoseIndex]}" style="width:100%; height:100%; object-fit:contain; transform: rotate(${deg}deg)">`;
-    document.getElementById('swing-preview').innerHTML = `<img src="${poses[nextPoseIndex]}" style="transform: rotate(${deg}deg); width:65px; height:65px;">`;
+    document.getElementById('swing-preview').innerHTML = `<img src="${poses[nextPoseIndex]}" style="transform: rotate(${deg}deg)">`;
 }
 updateNextPreview();
 
-function animateSwing() {
+function animate() {
     if (!isGameOver && canSpawn) {
         swingPos += swingDir * swingSpeed;
         if (swingPos >= 0.9) swingDir = -1; if (swingPos <= 0.1) swingDir = 1;
         document.getElementById('swing-preview').style.left = (swingPos * baseWidth - 32.5) + 'px';
-        document.getElementById('swing-preview').style.display = 'flex';
-    } else { document.getElementById('swing-preview').style.display = 'none'; }
-    requestAnimationFrame(animateSwing);
+    }
+    requestAnimationFrame(animate);
 }
-animateSwing();
+animate();
 
-document.getElementById('item-clear').onclick = (e) => {
-    e.stopPropagation(); if (displayScore < 500 || isDelivering) return;
-    startDelivery('images/item1.png', 500, () => {
-        Composite.allBodies(world).forEach(b => { if (b.label !== 'ground' && b.label !== 'ground-side') Composite.remove(world, b); });
+document.getElementById('item-clear').onclick = () => {
+    if (displayScore < 500 || isDelivering) return;
+    isDelivering = true; displayScore -= 500;
+    startDelivery('images/item1.png', () => {
+        Composite.allBodies(world).forEach(b => { if (!b.label.includes('ground')) Composite.remove(world, b); });
     });
 };
 
-document.getElementById('item-sushi').onclick = (e) => {
-    e.stopPropagation(); if (displayScore < 1000 || isDelivering || sushiActive) return;
-    startDelivery('images/item2.png', 1000, () => {
-        sushiActive = true;
-        sushiCounter = 5;
-        createGround('full');
+document.getElementById('item-sushi').onclick = () => {
+    if (displayScore < 1000 || isDelivering || sushiActive) return;
+    isDelivering = true; displayScore -= 1000;
+    startDelivery('images/item2.png', () => {
+        sushiActive = true; sushiCounter = 5;
+        updateGround('full');
         document.getElementById('sushi-timer').style.display = 'block';
         document.getElementById('timer-count').innerText = sushiCounter;
     });
 };
 
-function startDelivery(img, cost, onImpact) {
-    isDelivering = true; displayScore -= cost; updateUI();
+function startDelivery(img, onImpact) {
     const unit = document.getElementById('delivery-unit');
     document.getElementById('cargo-item').src = img;
     unit.style.display = 'block';
-    let pos = -100;
-    const anim = setInterval(() => {
-        pos += 3; unit.style.left = pos + 'px';
-        if (pos >= baseWidth / 2 - 30) { 
-            clearInterval(anim); 
-            setTimeout(() => { 
-                onImpact(); unit.style.display = 'none'; isDelivering = false; updateUI(); 
-                const el = document.getElementById('effect-layer'); el.classList.add('flash');
-                setTimeout(()=>el.classList.remove('flash'), 400);
-            }, 500);
+    let x = -100;
+    const drive = setInterval(() => {
+        x += 4; unit.style.left = x + 'px';
+        if (x >= baseWidth/2 - 30) { 
+            clearInterval(drive); 
+            setTimeout(() => { onImpact(); unit.style.display = 'none'; isDelivering = false; updateUI(); }, 500);
         }
     }, 16);
 }
 
-document.getElementById('rotate-btn').onclick = (e) => { e.stopPropagation(); currentRotation += Math.PI / 2; updateNextPreview(); };
+document.getElementById('rotate-btn').onclick = () => { currentRotation += Math.PI/2; updateNextPreview(); };
 
-function spawnPerson() {
+function spawn() {
     if (isGameOver || !canSpawn) return;
-    canSpawn = false; 
-    const imgPath = poses[nextPoseIndex];
-    const body = Bodies.rectangle(swingPos * baseWidth, 60, 50, 50, {
-        restitution: 0.1, friction: 0.6, angle: currentRotation,
-        render: { sprite: { texture: imgPath, xScale: 0.5, yScale: 0.5 } }
+    canSpawn = false;
+    const body = Bodies.rectangle(swingPos * baseWidth, 60, 55, 55, { // サイズ固定
+        restitution: 0.1, friction: 0.5, angle: currentRotation,
+        render: { sprite: { texture: poses[nextPoseIndex], xScale: 0.55, yScale: 0.55 } }
     });
     Composite.add(world, body);
     lastPoseIndex = nextPoseIndex; setNextPose(); currentRotation = 0; updateNextPreview();
-
     if (sushiActive) {
         sushiCounter--;
         document.getElementById('timer-count').innerText = sushiCounter;
-        if (sushiCounter <= 0) {
-            sushiActive = false;
-            document.getElementById('sushi-timer').style.display = 'none';
-            createGround('hole');
-        }
+        if (sushiCounter <= 0) { sushiActive = false; updateGround('hole'); document.getElementById('sushi-timer').style.display = 'none'; }
     }
-    setTimeout(() => { canSpawn = true; }, 600);
+    setTimeout(() => canSpawn = true, 600);
 }
 
 Events.on(engine, 'afterUpdate', () => {
     if (isGameOver) return;
     let tempScore = 0;
-    Composite.allBodies(world).forEach(body => {
-        if (body.label === 'ground' || body.label === 'ground-side') return;
-        if (body.position.y > baseHeight + 100) { 
-            isGameOver = true; Runner.stop(runner);
-            document.getElementById('final-score').innerText = displayScore;
-            document.getElementById('game-over-screen').style.display = 'flex';
-        }
-        if (Math.abs(body.velocity.y) < 0.1) {
-            tempScore += (100 + Math.max(0, Math.floor((baseHeight - body.position.y) / 10)) * 10);
-        }
+    Composite.allBodies(world).forEach(b => {
+        if (b.label.includes('ground')) return;
+        if (b.position.y > baseHeight + 80) { isGameOver = true; document.getElementById('final-score').innerText = displayScore; document.getElementById('game-over-screen').style.display = 'flex'; }
+        if (b.isStatic || Math.abs(b.velocity.y) < 0.1) tempScore += 100;
     });
     if (!isDelivering) displayScore = tempScore;
     updateUI();
 });
 
-function restartGame() {
-    location.reload(); // 状態リセットのためリロード
-}
-
-document.getElementById('game-container').addEventListener('mousedown', (e) => {
-    if (e.target.closest('button') || e.target.closest('.item-btn')) return;
-    spawnPerson();
-});
+document.getElementById('game-container').onmousedown = (e) => { if (!e.target.closest('button') && !e.target.closest('.item-btn')) spawn(); };
 </script>
 </body>
 </html>
