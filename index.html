@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Human Tower Battle - Final Fixed</title>
+    <title>Human Tower Battle - Stabilized</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.19.0/matter.min.js"></script>
     <style>
         body { 
@@ -78,6 +78,7 @@
         }
         #game-over-screen h1 { font-size: 40px; margin: 10px 0; color: #ff5252; text-align: center; }
         #game-over-screen p { font-size: 24px; margin: 5px 0 20px 0; }
+        @keyframes shake { 0%, 100% { transform: translateX(0); } 25% { transform: translateX(-5px); } 75% { transform: translateX(5px); } }
     </style>
 </head>
 <body>
@@ -113,14 +114,13 @@
                 <div class="item-cost">消費: 500pt</div>
             </div>
         </div>
-        <div class="item-btn" id="item-sushi">
+        <div class="item-btn" id="item-sushi" style="opacity: 0.3; cursor: default;">
             <img src="images/item2.png" alt="寿司" onerror="this.src='https://cdn-icons-png.flaticon.com/512/2252/2252430.png'">
             <div class="item-text">
-                <div class="item-name">寿司</div>
-                <div class="item-cost">消費: 1000pt</div>
+                <div class="item-name">寿司 (調整中)</div>
+                <div class="item-cost">使用不可</div>
             </div>
         </div>
-        <div class="item-btn" style="opacity: 0.2;"><div style="width:28px;"></div><span class="item-name">???</span></div>
     </div>
 </div>
 
@@ -162,8 +162,8 @@ Render.run(render);
 let runner = Runner.create();
 Runner.run(runner, engine);
 
-// 土台を「広く、かつ落ちる隙間がある」サイズ（画面の85%）に設定
-let ground = Bodies.rectangle(baseWidth / 2, baseHeight - 20, baseWidth * 0.85, 40, { 
+// 土台（元の0.7倍サイズに復旧）
+let ground = Bodies.rectangle(baseWidth / 2, baseHeight - 20, baseWidth * 0.7, 40, { 
     isStatic: true, label: 'ground', render: { fillStyle: '#263238' } 
 });
 Composite.add(world, ground);
@@ -171,7 +171,6 @@ Composite.add(world, ground);
 function updateUI() {
     document.getElementById('score').innerText = displayScore;
     document.getElementById('item-clear').classList.toggle('active', displayScore >= 500 && !isDelivering);
-    document.getElementById('item-sushi').classList.toggle('active', displayScore >= 1000 && !isDelivering);
 }
 
 function updateNextPreview() {
@@ -184,7 +183,7 @@ updateNextPreview();
 
 function animateSwing() {
     if (!isGameOver && canSpawn) {
-        swingPos += swingSpeed * swingDir;
+        swingPos += swingDir * swingSpeed;
         if (swingPos >= 0.9) swingDir = -1; if (swingPos <= 0.1) swingDir = 1;
         const x = swingPos * baseWidth;
         const swingContainer = document.getElementById('swing-preview');
@@ -199,7 +198,7 @@ animateSwing();
 function startDelivery(itemImgSrc, cost, onImpact) {
     if (isDelivering) return;
     isDelivering = true;
-    displayScore = Math.max(0, displayScore - cost); // 正しく減算
+    displayScore -= cost;
     updateUI();
     const unit = document.getElementById('delivery-unit'), cargo = document.getElementById('cargo-item');
     cargo.src = itemImgSrc; cargo.style.display = 'block'; unit.style.display = 'block';
@@ -226,19 +225,6 @@ document.getElementById('item-clear').onclick = function(e) {
     if (displayScore >= 500) {
         startDelivery(this.querySelector('img').src, 500, () => {
             Composite.allBodies(world).forEach(b => { if (b.label !== 'ground') Composite.remove(world, b); });
-        });
-    } else { this.classList.add('error'); setTimeout(() => this.classList.remove('error'), 300); }
-};
-
-document.getElementById('item-sushi').onclick = function(e) {
-    e.stopPropagation(); if (isGameOver || isDelivering) return;
-    if (displayScore >= 1000) {
-        startDelivery(this.querySelector('img').src, 1000, () => {
-            Composite.allBodies(world).forEach(b => { 
-                if (b.label !== 'ground') {
-                    Body.scale(b, 1.5, 1.0); // 既に落ちているパーツのみ拡大
-                }
-            });
         });
     } else { this.classList.add('error'); setTimeout(() => this.classList.remove('error'), 300); }
 };
@@ -285,13 +271,12 @@ Events.on(engine, 'afterUpdate', () => {
             document.getElementById('game-over-screen').style.display = 'flex'; 
         }
 
-        // スコア加算：固定されているパーツの高さを基準に算出
         if (body.isStatic) {
             fixedStackScore += (100 + Math.max(0, Math.floor((baseHeight - 40 - body.position.y) / 10)) * 10);
         }
     });
     
-    // アイテム配達中以外は最新の積み上げスコアを反映
+    // スコア計算を正常化
     if (!isDelivering) {
         displayScore = fixedStackScore;
     }
@@ -300,7 +285,7 @@ Events.on(engine, 'afterUpdate', () => {
 
 function restartGame() {
     Composite.clear(world, false); 
-    ground = Bodies.rectangle(baseWidth / 2, baseHeight - 20, baseWidth * 0.85, 40, { isStatic: true, label: 'ground', render: { fillStyle: '#263238' } });
+    ground = Bodies.rectangle(baseWidth / 2, baseHeight - 20, baseWidth * 0.7, 40, { isStatic: true, label: 'ground', render: { fillStyle: '#263238' } });
     Composite.add(world, ground);
     isGameOver = false; displayScore = 0; lastPoseIndex = -1; setNextPose(); 
     document.getElementById('game-over-screen').style.display = 'none';
