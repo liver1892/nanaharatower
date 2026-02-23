@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Human Tower Battle - Sushi Risk</title>
+    <title>Human Tower Battle - Sushi Fix</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.19.0/matter.min.js"></script>
     <style>
         body { 
@@ -68,7 +68,7 @@
 
         #item-list { display: flex; flex-direction: column; gap: 5px; }
         .item-btn {
-            width: 140px; height: 40px; background: #455a64; border-radius: 6px; border: 1.5px solid #cfd8dc;
+            width: 130px; height: 40px; background: #455a64; border-radius: 6px; border: 1.5px solid #cfd8dc;
             display: flex; align-items: center; padding: 0 8px; cursor: pointer; color: white;
             box-shadow: 0 2px #263238; -webkit-tap-highlight-color: transparent; transition: all 0.2s;
         }
@@ -76,7 +76,7 @@
         .item-btn.active .item-cost { color: #00e5ff; }
         .item-btn.error { animation: shake 0.3s; background: #b71c1c; }
         .item-btn img { width: 28px; height: 28px; object-fit: contain; margin-right: 6px; background: white; border-radius: 3px; }
-        .item-name { font-size: 10px; font-weight: bold; line-height: 1.1; }
+        .item-name { font-size: 12px; font-weight: bold; line-height: 1.1; }
         .item-cost { font-size: 9px; color: #cfd8dc; }
 
         #game-over-screen {
@@ -124,7 +124,7 @@
         <div class="item-btn" id="item-sushi">
             <img src="images/item2.png" alt="寿司" onerror="this.src='https://cdn-icons-png.flaticon.com/512/2252/2252430.png'">
             <div class="item-text">
-                <div class="item-name">特上握り(呪)</div>
+                <div class="item-name">寿司</div>
                 <div class="item-cost">消費: 1000pt</div>
             </div>
         </div>
@@ -146,8 +146,8 @@ let currentStackScore = 0;
 let displayScore = 0;        
 let currentRotation = 0, canSpawn = true, isDelivering = false;
 
-// 寿司アイテム用変数
-let sushiCounter = -1; // -1: 未使用, 0以上: 残り回数
+// 寿司用
+let sushiCounter = -1; 
 
 let swingPos = 0.5; 
 let swingDir = 1;
@@ -181,16 +181,11 @@ Composite.add(world, ground);
 
 function updateUI() {
     document.getElementById('score').innerText = displayScore;
-    
-    // アイテム1: 遺骨
     const btnClear = document.getElementById('item-clear');
-    if(displayScore >= 500 && !isDelivering) btnClear.classList.add('active');
-    else btnClear.classList.remove('active');
+    btnClear.classList.toggle('active', displayScore >= 500 && !isDelivering);
 
-    // アイテム2: 寿司
     const btnSushi = document.getElementById('item-sushi');
-    if(displayScore >= 1000 && !isDelivering && sushiCounter === -1) btnSushi.classList.add('active');
-    else btnSushi.classList.remove('active');
+    btnSushi.classList.toggle('active', displayScore >= 1000 && !isDelivering && sushiCounter === -1);
 }
 
 function updateNextPreview() {
@@ -236,15 +231,13 @@ function startDelivery(itemImgSrc, onImpact) {
 function dropItem(imgSrc, onImpact) {
     const container = document.getElementById('game-container'), falling = document.createElement('img');
     falling.src = imgSrc; falling.className = 'falling-item'; 
-    falling.style.left = (baseWidth / 2 - 12) + 'px'; 
-    falling.style.top = '25px';
+    falling.style.left = (baseWidth / 2 - 12) + 'px'; falling.style.top = '25px';
     container.appendChild(falling);
     setTimeout(() => { onImpact(); falling.remove();
         const el = document.getElementById('effect-layer'); el.classList.remove('flash'); void el.offsetWidth; el.classList.add('flash');
     }, 1000); 
 }
 
-// アイテム：遺骨
 document.getElementById('item-clear').onclick = function(e) {
     e.stopPropagation();
     if (isGameOver || isDelivering) return;
@@ -257,20 +250,16 @@ document.getElementById('item-clear').onclick = function(e) {
     } else { this.classList.add('error'); setTimeout(() => this.classList.remove('error'), 300); }
 };
 
-// アイテム：寿司
 document.getElementById('item-sushi').onclick = function(e) {
     e.stopPropagation();
     if (isGameOver || isDelivering || sushiCounter !== -1) return;
     if (displayScore >= 1000) {
         baseScore = Math.max(0, displayScore - 1000);
         startDelivery(this.querySelector('img').src, () => {
-            // 全パーツを1.5倍にする
             Composite.allBodies(world).forEach(b => {
-                if (b.label !== 'ground') {
-                    Body.scale(b, 1.5, 1.0); // 横に1.5倍
-                }
+                if (b.label !== 'ground') Body.scale(b, 1.5, 1.0);
             });
-            sushiCounter = 5; // カウント開始
+            sushiCounter = 5; 
             displayScore = baseScore; updateUI();
         });
     } else { this.classList.add('error'); setTimeout(() => this.classList.remove('error'), 300); }
@@ -282,15 +271,24 @@ function spawnPerson() {
     if (isGameOver || !canSpawn) return;
     canSpawn = false; 
     
-    // 寿司カウントダウン
+    // 寿司カウントダウン処理
     if (sushiCounter > 0) {
         sushiCounter--;
         if (sushiCounter === 0) {
-            // 地面に穴をあける（真ん中を消去し、左右に分割）
+            // 地面に穴をあける
             Composite.remove(world, ground);
             const leftGround = Bodies.rectangle(baseWidth * 0.15, baseHeight - 20, baseWidth * 0.3, 40, { isStatic: true, label: 'ground', render: { fillStyle: '#263238' } });
             const rightGround = Bodies.rectangle(baseWidth * 0.85, baseHeight - 20, baseWidth * 0.3, 40, { isStatic: true, label: 'ground', render: { fillStyle: '#263238' } });
             Composite.add(world, [leftGround, rightGround]);
+
+            // 【重要】穴が開いた瞬間に、空中の全パーツの固定(Static)を解除して落とす
+            Composite.allBodies(world).forEach(b => {
+                if (b.label !== 'ground') {
+                    Body.setStatic(b, false);
+                    // 落下を促すために微かな力を加える
+                    Body.applyForce(b, b.position, { x: (Math.random()-0.5)*0.01, y: 0.01 });
+                }
+            });
         }
     }
 
@@ -318,16 +316,21 @@ Events.on(engine, 'afterUpdate', () => {
     let totalScore = 0;
 
     bodies.forEach(body => {
+        // 速度判定
         const speed = Math.sqrt(body.velocity.x**2 + body.velocity.y**2);
-        if (speed < 0.1 && Math.abs(body.angularVelocity) < 0.01) {
-            body.idleFrames = (body.idleFrames || 0) + 1;
-        } else { body.idleFrames = 0; }
+        
+        // 穴あきモード(sushiCounter===0)以外の場合のみ、安定化（固定）を行う
+        if (sushiCounter !== 0) {
+            if (speed < 0.1 && Math.abs(body.angularVelocity) < 0.01) {
+                body.idleFrames = (body.idleFrames || 0) + 1;
+            } else { body.idleFrames = 0; }
+            if (body.idleFrames > 60) { Body.setStatic(body, true); }
+        }
 
-        if (body.idleFrames > 60) { Body.setStatic(body, true); }
-
+        // 落下判定（穴が開いた後はより厳格に）
         if (body.position.y > baseHeight + 100) { 
             isGameOver = true; Runner.stop(runner); 
-            document.getElementById('game-over-msg').innerText = sushiCounter === 0 ? "穴に落ちたぁ～！" : "なんでぇ～";
+            document.getElementById('game-over-msg').innerText = sushiCounter === 0 ? "地面が消えたぁ～！" : "なんでぇ～";
             document.getElementById('final-score').innerText = displayScore; 
             document.getElementById('game-over-screen').style.display = 'flex'; 
         }
