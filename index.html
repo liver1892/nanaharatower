@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Human Tower Battle - Full Optimized</title>
+    <title>Human Tower Battle - Final Fixed</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.19.0/matter.min.js"></script>
     <style>
         body { 
@@ -78,7 +78,6 @@
         }
         #game-over-screen h1 { font-size: 40px; margin: 10px 0; color: #ff5252; text-align: center; }
         #game-over-screen p { font-size: 24px; margin: 5px 0 20px 0; }
-        @keyframes shake { 0%, 100% { transform: translateX(0); } 25% { transform: translateX(-5px); } 75% { transform: translateX(5px); } }
     </style>
 </head>
 <body>
@@ -149,7 +148,7 @@ function setNextPose() {
     let next;
     do {
         next = Math.floor(Math.random() * poses.length);
-    } while (next === lastPoseIndex); // 同じのが続かないように修正
+    } while (next === lastPoseIndex); 
     nextPoseIndex = next;
 }
 setNextPose();
@@ -163,8 +162,8 @@ Render.run(render);
 let runner = Runner.create();
 Runner.run(runner, engine);
 
-// 土台を横幅いっぱいに拡大
-let ground = Bodies.rectangle(baseWidth / 2, baseHeight - 20, baseWidth, 40, { 
+// 土台を「広く、かつ落ちる隙間がある」サイズ（画面の85%）に設定
+let ground = Bodies.rectangle(baseWidth / 2, baseHeight - 20, baseWidth * 0.85, 40, { 
     isStatic: true, label: 'ground', render: { fillStyle: '#263238' } 
 });
 Composite.add(world, ground);
@@ -200,9 +199,8 @@ animateSwing();
 function startDelivery(itemImgSrc, cost, onImpact) {
     if (isDelivering) return;
     isDelivering = true;
-    displayScore -= cost; // ポイントを即座に消費（増加バグ修正）
+    displayScore = Math.max(0, displayScore - cost); // 正しく減算
     updateUI();
-    
     const unit = document.getElementById('delivery-unit'), cargo = document.getElementById('cargo-item');
     cargo.src = itemImgSrc; cargo.style.display = 'block'; unit.style.display = 'block';
     let pos = -100, speed = 2.5, targetDropX = baseWidth / 2 - 30, dropped = false;
@@ -236,9 +234,10 @@ document.getElementById('item-sushi').onclick = function(e) {
     e.stopPropagation(); if (isGameOver || isDelivering) return;
     if (displayScore >= 1000) {
         startDelivery(this.querySelector('img').src, 1000, () => {
-            // すでに落ちている（積み上がっている）パーツのみを1.5倍に拡大
             Composite.allBodies(world).forEach(b => { 
-                if (b.label !== 'ground') Body.scale(b, 1.5, 1.0); 
+                if (b.label !== 'ground') {
+                    Body.scale(b, 1.5, 1.0); // 既に落ちているパーツのみ拡大
+                }
             });
         });
     } else { this.classList.add('error'); setTimeout(() => this.classList.remove('error'), 300); }
@@ -249,7 +248,6 @@ document.getElementById('rotate-btn').onclick = (e) => { e.stopPropagation(); cu
 function spawnPerson() {
     if (isGameOver || !canSpawn) return;
     canSpawn = false; 
-
     const spawnX = swingPos * baseWidth;
     const imgPath = poses[nextPoseIndex], img = new Image();
     img.src = imgPath;
@@ -276,7 +274,6 @@ Events.on(engine, 'afterUpdate', () => {
 
     allParts.forEach(body => {
         const speed = Math.sqrt(body.velocity.x**2 + body.velocity.y**2);
-        
         if (speed < 0.1 && Math.abs(body.angularVelocity) < 0.01) {
             body.idleFrames = (body.idleFrames || 0) + 1;
         } else { body.idleFrames = 0; }
@@ -288,24 +285,22 @@ Events.on(engine, 'afterUpdate', () => {
             document.getElementById('game-over-screen').style.display = 'flex'; 
         }
 
+        // スコア加算：固定されているパーツの高さを基準に算出
         if (body.isStatic) {
             fixedStackScore += (100 + Math.max(0, Math.floor((baseHeight - 40 - body.position.y) / 10)) * 10);
         }
     });
     
-    // スコア表示の更新
-    const currentTotal = fixedStackScore; 
-    if (!isDelivering && currentTotal > (displayScore % 100000)) {
-        // スコア加算のロジックはMatter-jsの静止状態に基づく
-        const scoreLabel = document.getElementById('score');
-        scoreLabel.innerText = displayScore;
+    // アイテム配達中以外は最新の積み上げスコアを反映
+    if (!isDelivering) {
+        displayScore = fixedStackScore;
     }
     updateUI();
 });
 
 function restartGame() {
     Composite.clear(world, false); 
-    ground = Bodies.rectangle(baseWidth / 2, baseHeight - 20, baseWidth, 40, { isStatic: true, label: 'ground', render: { fillStyle: '#263238' } });
+    ground = Bodies.rectangle(baseWidth / 2, baseHeight - 20, baseWidth * 0.85, 40, { isStatic: true, label: 'ground', render: { fillStyle: '#263238' } });
     Composite.add(world, ground);
     isGameOver = false; displayScore = 0; lastPoseIndex = -1; setNextPose(); 
     document.getElementById('game-over-screen').style.display = 'none';
