@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Human Tower Battle - Fixed Stack</title>
+    <title>Human Tower Battle - Sushi Risk</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.19.0/matter.min.js"></script>
     <style>
         body { 
@@ -68,7 +68,7 @@
 
         #item-list { display: flex; flex-direction: column; gap: 5px; }
         .item-btn {
-            width: 120px; height: 40px; background: #455a64; border-radius: 6px; border: 1.5px solid #cfd8dc;
+            width: 140px; height: 40px; background: #455a64; border-radius: 6px; border: 1.5px solid #cfd8dc;
             display: flex; align-items: center; padding: 0 8px; cursor: pointer; color: white;
             box-shadow: 0 2px #263238; -webkit-tap-highlight-color: transparent; transition: all 0.2s;
         }
@@ -84,7 +84,7 @@
             background: rgba(0,0,0,0.85); display: none; flex-direction: column; align-items: center; justify-content: center;
             color: white; border-radius: 8px; z-index: 200;
         }
-        #game-over-screen h1 { font-size: 48px; margin: 10px 0; color: #ff5252; }
+        #game-over-screen h1 { font-size: 40px; margin: 10px 0; color: #ff5252; text-align: center; }
         #game-over-screen p { font-size: 24px; margin: 5px 0 20px 0; }
     </style>
 </head>
@@ -105,7 +105,7 @@
         </div>
     </div>
     <div id="game-over-screen">
-        <h1>なんでぇ～</h1>
+        <h1 id="game-over-msg">なんでぇ～</h1>
         <p>BEST: <span id="final-score">0</span></p>
         <button style="padding: 12px 40px; border-radius: 30px; border: none; background: #4caf50; color: white; font-weight: bold; font-size: 18px; cursor: pointer;" onclick="restartGame()">もう1回</button>
     </div>
@@ -121,7 +121,13 @@
                 <div class="item-cost">消費: 500pt</div>
             </div>
         </div>
-        <div class="item-btn" style="opacity: 0.2;"><div style="width:28px;"></div><span class="item-name">???</span></div>
+        <div class="item-btn" id="item-sushi">
+            <img src="images/item2.png" alt="寿司" onerror="this.src='https://cdn-icons-png.flaticon.com/512/2252/2252430.png'">
+            <div class="item-text">
+                <div class="item-name">特上握り(呪)</div>
+                <div class="item-cost">消費: 1000pt</div>
+            </div>
+        </div>
         <div class="item-btn" style="opacity: 0.2;"><div style="width:28px;"></div><span class="item-name">???</span></div>
     </div>
 </div>
@@ -140,6 +146,9 @@ let currentStackScore = 0;
 let displayScore = 0;        
 let currentRotation = 0, canSpawn = true, isDelivering = false;
 
+// 寿司アイテム用変数
+let sushiCounter = -1; // -1: 未使用, 0以上: 残り回数
+
 let swingPos = 0.5; 
 let swingDir = 1;
 let swingSpeed = 0.015;
@@ -149,50 +158,44 @@ const poses = [
     'images/pose5.png', 'images/pose6.png', 'images/pose7.png', 'images/pose8.png',
     'images/pose9.png', 'images/pose10.png', 'images/pose11.png', 'images/pose12.png'
 ];
-let lastPoseIndex = -1;
 let nextPoseIndex = Math.floor(Math.random() * poses.length);
 
 function setNextPose() {
-    lastPoseIndex = nextPoseIndex;
-    let newIndex;
-    do {
-        newIndex = Math.floor(Math.random() * poses.length);
-    } while (newIndex === lastPoseIndex);
-    nextPoseIndex = newIndex;
+    nextPoseIndex = Math.floor(Math.random() * poses.length);
 }
 
 const render = Render.create({
     element: document.getElementById('game-container'),
     engine: engine,
-    options: { 
-        width: baseWidth, 
-        height: baseHeight, 
-        wireframes: false, 
-        background: '#ffffff',
-        pixelRatio: ratio
-    }
+    options: { width: baseWidth, height: baseHeight, wireframes: false, background: '#ffffff', pixelRatio: ratio }
 });
 
 Render.run(render);
 let runner = Runner.create();
 Runner.run(runner, engine);
 
-const ground = Bodies.rectangle(baseWidth / 2, baseHeight - 20, baseWidth * 0.7, 40, { 
+let ground = Bodies.rectangle(baseWidth / 2, baseHeight - 20, baseWidth * 0.7, 40, { 
     isStatic: true, label: 'ground', render: { fillStyle: '#263238' } 
 });
 Composite.add(world, ground);
 
 function updateUI() {
     document.getElementById('score').innerText = displayScore;
-    const btn = document.getElementById('item-clear');
-    if(displayScore >= 500 && !isDelivering) btn.classList.add('active');
-    else btn.classList.remove('active');
+    
+    // アイテム1: 遺骨
+    const btnClear = document.getElementById('item-clear');
+    if(displayScore >= 500 && !isDelivering) btnClear.classList.add('active');
+    else btnClear.classList.remove('active');
+
+    // アイテム2: 寿司
+    const btnSushi = document.getElementById('item-sushi');
+    if(displayScore >= 1000 && !isDelivering && sushiCounter === -1) btnSushi.classList.add('active');
+    else btnSushi.classList.remove('active');
 }
 
 function updateNextPreview() {
     const deg = (currentRotation * 180) / Math.PI;
     document.getElementById('next-preview').innerHTML = `<img src="${poses[nextPoseIndex]}" style="width:75%; height:75%; object-fit:contain; transform: rotate(${deg}deg)">`;
-    
     const swingContainer = document.getElementById('swing-preview');
     swingContainer.innerHTML = `<img src="${poses[nextPoseIndex]}" style="transform: rotate(${deg}deg)">`;
 }
@@ -203,10 +206,8 @@ function animateSwing() {
         swingPos += swingSpeed * swingDir;
         if (swingPos >= 0.9) swingDir = -1;
         if (swingPos <= 0.1) swingDir = 1;
-
         const x = swingPos * baseWidth;
         const swingContainer = document.getElementById('swing-preview');
-        
         const size = 65; 
         swingContainer.style.width = size + 'px';
         swingContainer.style.height = size + 'px';
@@ -238,127 +239,112 @@ function dropItem(imgSrc, onImpact) {
     falling.style.left = (baseWidth / 2 - 12) + 'px'; 
     falling.style.top = '25px';
     container.appendChild(falling);
-    setTimeout(() => { 
-        onImpact(); 
-        falling.remove();
+    setTimeout(() => { onImpact(); falling.remove();
         const el = document.getElementById('effect-layer'); el.classList.remove('flash'); void el.offsetWidth; el.classList.add('flash');
     }, 1000); 
 }
 
+// アイテム：遺骨
 document.getElementById('item-clear').onclick = function(e) {
     e.stopPropagation();
     if (isGameOver || isDelivering) return;
     if (displayScore >= 500) {
-        baseScore = displayScore - 500;
-        currentStackScore = 0;
-        displayScore = baseScore;
-        updateUI();
+        baseScore = Math.max(0, displayScore - 500);
         startDelivery(this.querySelector('img').src, () => {
-            Composite.allBodies(world).forEach(b => { 
-                if (b.label !== 'ground') Composite.remove(world, b); 
-            });
-            currentStackScore = 0;
-            displayScore = baseScore;
-            updateUI();
+            Composite.allBodies(world).forEach(b => { if (b.label !== 'ground') Composite.remove(world, b); });
+            currentStackScore = 0; displayScore = baseScore; updateUI();
         });
-    } else { 
-        this.classList.add('error'); 
-        setTimeout(() => this.classList.remove('error'), 300); 
-    }
+    } else { this.classList.add('error'); setTimeout(() => this.classList.remove('error'), 300); }
 };
 
-document.getElementById('rotate-btn').onclick = (e) => { 
+// アイテム：寿司
+document.getElementById('item-sushi').onclick = function(e) {
     e.stopPropagation();
-    currentRotation += Math.PI / 2; updateNextPreview(); 
+    if (isGameOver || isDelivering || sushiCounter !== -1) return;
+    if (displayScore >= 1000) {
+        baseScore = Math.max(0, displayScore - 1000);
+        startDelivery(this.querySelector('img').src, () => {
+            // 全パーツを1.5倍にする
+            Composite.allBodies(world).forEach(b => {
+                if (b.label !== 'ground') {
+                    Body.scale(b, 1.5, 1.0); // 横に1.5倍
+                }
+            });
+            sushiCounter = 5; // カウント開始
+            displayScore = baseScore; updateUI();
+        });
+    } else { this.classList.add('error'); setTimeout(() => this.classList.remove('error'), 300); }
 };
+
+document.getElementById('rotate-btn').onclick = (e) => { e.stopPropagation(); currentRotation += Math.PI / 2; updateNextPreview(); };
 
 function spawnPerson() {
     if (isGameOver || !canSpawn) return;
     canSpawn = false; 
     
+    // 寿司カウントダウン
+    if (sushiCounter > 0) {
+        sushiCounter--;
+        if (sushiCounter === 0) {
+            // 地面に穴をあける（真ん中を消去し、左右に分割）
+            Composite.remove(world, ground);
+            const leftGround = Bodies.rectangle(baseWidth * 0.15, baseHeight - 20, baseWidth * 0.3, 40, { isStatic: true, label: 'ground', render: { fillStyle: '#263238' } });
+            const rightGround = Bodies.rectangle(baseWidth * 0.85, baseHeight - 20, baseWidth * 0.3, 40, { isStatic: true, label: 'ground', render: { fillStyle: '#263238' } });
+            Composite.add(world, [leftGround, rightGround]);
+        }
+    }
+
     const spawnX = swingPos * baseWidth;
     const imgPath = poses[nextPoseIndex], img = new Image();
     img.src = imgPath;
-    
     img.onload = () => {
         const targetArea = 4500, aspectRatio = img.width / img.height;
         const h = Math.sqrt(targetArea / aspectRatio), w = h * aspectRatio;
         const scale = w / img.width;
-
         const body = Bodies.rectangle(spawnX, 60, w, h, {
             chamfer: { radius: [w*0.1, w*0.1, w*0.1, w*0.1] },
-            restitution: 0.1, 
-            friction: 0.6,
-            frictionAir: 0.03,
-            angle: currentRotation,
-            // 安定判定用のプロパティを独自に追加
-            sleepThreshold: 60, // 動きが少ないフレームが続いたら判定
+            restitution: 0.1, friction: 0.6, frictionAir: 0.03, angle: currentRotation,
             render: { sprite: { texture: imgPath, xScale: scale, yScale: scale } }
         });
-
         Composite.add(world, body);
-        setNextPose();
-        currentRotation = 0; updateNextPreview();
+        setNextPose(); currentRotation = 0; updateNextPreview();
         setTimeout(() => { canSpawn = true; }, 500);
     };
 }
 
 Events.on(engine, 'afterUpdate', () => {
     if (isGameOver) return;
-    let tempStackScore = 0;
-    let bodies = Composite.allBodies(world).filter(b => !b.isStatic);
+    let bodies = Composite.allBodies(world).filter(b => b.label !== 'ground');
+    let totalScore = 0;
 
-    if (bodies.length === 0) {
-        currentStackScore = 0;
-    } else {
-        bodies.forEach(body => {
-            // --- 安定化・固定化ロジック ---
-            // 速度と角速度が非常に小さい場合、カウンタを進める
-            const speed = Math.sqrt(body.velocity.x**2 + body.velocity.y**2);
-            if (speed < 0.1 && Math.abs(body.angularVelocity) < 0.01) {
-                body.idleFrames = (body.idleFrames || 0) + 1;
-            } else {
-                body.idleFrames = 0;
-            }
+    bodies.forEach(body => {
+        const speed = Math.sqrt(body.velocity.x**2 + body.velocity.y**2);
+        if (speed < 0.1 && Math.abs(body.angularVelocity) < 0.01) {
+            body.idleFrames = (body.idleFrames || 0) + 1;
+        } else { body.idleFrames = 0; }
 
-            // 60フレーム（約1秒）安定したら、その場で固定(Static)にする
-            if (body.idleFrames > 60) {
-                Body.setStatic(body, true);
-            }
+        if (body.idleFrames > 60) { Body.setStatic(body, true); }
 
-            // ゲームオーバー判定
-            if (body.position.y > baseHeight + 60) { 
-                isGameOver = true; Runner.stop(runner); 
-                document.getElementById('final-score').innerText = displayScore; 
-                document.getElementById('game-over-screen').style.display = 'flex'; 
-                return; 
-            }
-
-            // スコア計算（静止しているパーツの高さに応じて加算）
-            if (speed < 0.2) {
-                tempStackScore += (100 + Math.max(0, Math.floor((baseHeight - 40 - body.position.y) / 10)) * 10);
-            }
-        });
-        
-        // 固定された(Static)パーツもスコアに含めるために全取得
-        const allBodies = Composite.allBodies(world).filter(b => b.label !== 'ground');
-        let totalScore = 0;
-        allBodies.forEach(b => {
-            totalScore += (100 + Math.max(0, Math.floor((baseHeight - 40 - b.position.y) / 10)) * 10);
-        });
-        currentStackScore = totalScore;
-    }
-
-    if (!isDelivering) {
-        displayScore = baseScore + currentStackScore;
-    }
+        if (body.position.y > baseHeight + 100) { 
+            isGameOver = true; Runner.stop(runner); 
+            document.getElementById('game-over-msg').innerText = sushiCounter === 0 ? "穴に落ちたぁ～！" : "なんでぇ～";
+            document.getElementById('final-score').innerText = displayScore; 
+            document.getElementById('game-over-screen').style.display = 'flex'; 
+        }
+        totalScore += (100 + Math.max(0, Math.floor((baseHeight - 40 - body.position.y) / 10)) * 10);
+    });
+    
+    currentStackScore = totalScore;
+    if (!isDelivering) { displayScore = baseScore + currentStackScore; }
     updateUI();
 });
 
 function restartGame() {
-    Composite.clear(world, false); Composite.add(world, ground);
+    Composite.clear(world, false); 
+    ground = Bodies.rectangle(baseWidth / 2, baseHeight - 20, baseWidth * 0.7, 40, { isStatic: true, label: 'ground', render: { fillStyle: '#263238' } });
+    Composite.add(world, ground);
     isGameOver = false; baseScore = 0; currentStackScore = 0; displayScore = 0;
-    lastPoseIndex = -1; setNextPose(); 
+    sushiCounter = -1; setNextPose(); 
     document.getElementById('game-over-screen').style.display = 'none';
     updateUI(); updateNextPreview(); Runner.run(runner, engine);
 }
@@ -367,7 +353,6 @@ function onActionStart(e) {
     if (e.target.closest('button') || e.target.closest('.item-btn')) return;
     spawnPerson();
 }
-
 render.canvas.addEventListener('mousedown', onActionStart);
 render.canvas.addEventListener('touchstart', onActionStart, {passive: true});
 </script>
