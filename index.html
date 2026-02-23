@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Human Tower Battle - Stabilized</title>
+    <title>Human Tower Battle - Slow Mode</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.19.0/matter.min.js"></script>
     <style>
         body { 
@@ -114,11 +114,11 @@
                 <div class="item-cost">消費: 500pt</div>
             </div>
         </div>
-        <div class="item-btn" id="item-sushi" style="opacity: 0.3; cursor: default;">
+        <div class="item-btn" id="item-sushi" style="opacity: 1; cursor: pointer;">
             <img src="images/item2.png" alt="寿司" onerror="this.src='https://cdn-icons-png.flaticon.com/512/2252/2252430.png'">
             <div class="item-text">
-                <div class="item-name">寿司 (調整中)</div>
-                <div class="item-cost">使用不可</div>
+                <div class="item-name">特上寿司</div>
+                <div class="item-cost">消費: 1000pt</div>
             </div>
         </div>
     </div>
@@ -134,7 +134,10 @@ const ratio = window.devicePixelRatio || 1;
 let isGameOver = false;
 let displayScore = 0;        
 let currentRotation = 0, canSpawn = true, isDelivering = false;
-let swingPos = 0.5, swingDir = 1, swingSpeed = 0.015;
+let swingPos = 0.5, swingDir = 1;
+
+// スピードを半分に変更 (0.015 -> 0.0075)
+let swingSpeed = 0.0075;
 
 const poses = [
     'images/pose1.png', 'images/pose2.png', 'images/pose3.png', 'images/pose4.png',
@@ -162,7 +165,7 @@ Render.run(render);
 let runner = Runner.create();
 Runner.run(runner, engine);
 
-// 土台（元の0.7倍サイズに復旧）
+// 土台
 let ground = Bodies.rectangle(baseWidth / 2, baseHeight - 20, baseWidth * 0.7, 40, { 
     isStatic: true, label: 'ground', render: { fillStyle: '#263238' } 
 });
@@ -171,6 +174,8 @@ Composite.add(world, ground);
 function updateUI() {
     document.getElementById('score').innerText = displayScore;
     document.getElementById('item-clear').classList.toggle('active', displayScore >= 500 && !isDelivering);
+    // 寿司ボタンの活性化ロジック
+    document.getElementById('item-sushi').classList.toggle('active', displayScore >= 1000 && !isDelivering);
 }
 
 function updateNextPreview() {
@@ -229,6 +234,16 @@ document.getElementById('item-clear').onclick = function(e) {
     } else { this.classList.add('error'); setTimeout(() => this.classList.remove('error'), 300); }
 };
 
+// 寿司ボタンの処理（スローの動作確認用）
+document.getElementById('item-sushi').onclick = function(e) {
+    e.stopPropagation(); if (isGameOver || isDelivering) return;
+    if (displayScore >= 1000) {
+        startDelivery(this.querySelector('img').src, 1000, () => {
+            // ここに「寿司の特殊効果」を後ほど追加できます
+        });
+    } else { this.classList.add('error'); setTimeout(() => this.classList.remove('error'), 300); }
+};
+
 document.getElementById('rotate-btn').onclick = (e) => { e.stopPropagation(); currentRotation += Math.PI / 2; updateNextPreview(); };
 
 function spawnPerson() {
@@ -276,7 +291,6 @@ Events.on(engine, 'afterUpdate', () => {
         }
     });
     
-    // スコア計算を正常化
     if (!isDelivering) {
         displayScore = fixedStackScore;
     }
