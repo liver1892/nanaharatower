@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Human Tower Battle - Sushi Fixed</title>
+    <title>Human Tower Battle - Fixed Score</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.19.0/matter.min.js"></script>
     <style>
         body { 
@@ -66,4 +66,260 @@
             box-shadow: 0 2px #263238; -webkit-tap-highlight-color: transparent; transition: all 0.2s;
         }
         .item-btn.active { border-color: #00e5ff; box-shadow: 0 0 12px #00e5ff; background: #546e7a; }
-        .item-btn.active .item-cost { color: #00e
+        .item-btn.active .item-cost { color: #00e5ff; }
+        .item-btn.error { animation: shake 0.3s; background: #b71c1c; }
+        .item-btn img { width: 28px; height: 28px; object-fit: contain; margin-right: 6px; background: white; border-radius: 3px; }
+        .item-name { font-size: 12px; font-weight: bold; line-height: 1.1; }
+        .item-cost { font-size: 9px; color: #cfd8dc; }
+        #game-over-screen {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.85); display: none; flex-direction: column; align-items: center; justify-content: center;
+            color: white; border-radius: 8px; z-index: 200;
+        }
+        #game-over-screen h1 { font-size: 40px; margin: 10px 0; color: #ff5252; text-align: center; }
+        #game-over-screen p { font-size: 24px; margin: 5px 0 20px 0; }
+    </style>
+</head>
+<body>
+
+<div id="game-container">
+    <div id="swing-preview"></div>
+    <div id="delivery-unit">
+        <img id="cargo-item" src="" alt="">
+        <img id="bike-img" src="images/pose5.png" alt="ショージ">
+    </div>
+    <div id="effect-layer"></div>
+    <div id="ui-layer">
+        <div class="hud-box"><div class="hud">SCORE: <span id="score">0</span></div></div>
+        <div class="hud-box" style="align-items: flex-end;">
+            <div class="hud">NEXT</div>
+            <div id="next-preview" style="width:40px; height:40px; background:rgba(255,255,255,0.9); border-radius:8px; display:flex; align-items:center; justify-content:center; margin-top:3px;"></div>
+        </div>
+    </div>
+    <div id="game-over-screen">
+        <h1>なんでぇ～</h1>
+        <p>BEST: <span id="final-score">0</span></p>
+        <button style="padding: 12px 40px; border-radius: 30px; border: none; background: #4caf50; color: white; font-weight: bold; font-size: 18px; cursor: pointer;" onclick="restartGame()">もう1回</button>
+    </div>
+</div>
+
+<div id="bottom-ui">
+    <button class="btn-rotate" id="rotate-btn">回転</button>
+    <div id="item-list">
+        <div class="item-btn" id="item-clear">
+            <img src="images/item1.png" alt="遺骨" onerror="this.src='https://cdn-icons-png.flaticon.com/512/2865/2865778.png'">
+            <div class="item-text">
+                <div class="item-name">ショージの遺骨</div>
+                <div class="item-cost">消費: 500pt</div>
+            </div>
+        </div>
+        <div class="item-btn" id="item-sushi">
+            <img src="images/item2.png" alt="寿司" onerror="this.src='https://cdn-icons-png.flaticon.com/512/2252/2252430.png'">
+            <div class="item-text">
+                <div class="item-name">寿司</div>
+                <div class="item-cost">消費: 1000pt</div>
+            </div>
+        </div>
+        <div class="item-btn" style="opacity: 0.2;"><div style="width:28px;"></div><span class="item-name">???</span></div>
+    </div>
+</div>
+
+<script>
+const { Engine, Render, Runner, Bodies, Composite, Events, Body } = Matter;
+let engine = Engine.create();
+let world = engine.world;
+const baseWidth = 360, baseHeight = 550;
+const ratio = window.devicePixelRatio || 1;
+
+let isGameOver = false;
+let baseScore = 0;           
+let displayScore = 0;        
+let currentRotation = 0, canSpawn = true, isDelivering = false;
+let sushiCounter = -1; 
+let swingPos = 0.5, swingDir = 1, swingSpeed = 0.015;
+
+const poses = [
+    'images/pose1.png', 'images/pose2.png', 'images/pose3.png', 'images/pose4.png',
+    'images/pose5.png', 'images/pose6.png', 'images/pose7.png', 'images/pose8.png',
+    'images/pose9.png', 'images/pose10.png', 'images/pose11.png', 'images/pose12.png'
+];
+let nextPoseIndex = Math.floor(Math.random() * poses.length);
+
+function setNextPose() { nextPoseIndex = Math.floor(Math.random() * poses.length); }
+
+const render = Render.create({
+    element: document.getElementById('game-container'),
+    engine: engine,
+    options: { width: baseWidth, height: baseHeight, wireframes: false, background: '#ffffff', pixelRatio: ratio }
+});
+Render.run(render);
+let runner = Runner.create();
+Runner.run(runner, engine);
+
+let ground = Bodies.rectangle(baseWidth / 2, baseHeight - 20, baseWidth * 0.7, 40, { 
+    isStatic: true, label: 'ground', render: { fillStyle: '#263238' } 
+});
+Composite.add(world, ground);
+
+function updateUI() {
+    document.getElementById('score').innerText = displayScore;
+    document.getElementById('item-clear').classList.toggle('active', displayScore >= 500 && !isDelivering);
+    document.getElementById('item-sushi').classList.toggle('active', displayScore >= 1000 && !isDelivering && sushiCounter === -1);
+}
+
+function updateNextPreview() {
+    const deg = (currentRotation * 180) / Math.PI;
+    document.getElementById('next-preview').innerHTML = `<img src="${poses[nextPoseIndex]}" style="width:75%; height:75%; object-fit:contain; transform: rotate(${deg}deg)">`;
+    const swingContainer = document.getElementById('swing-preview');
+    swingContainer.innerHTML = `<img src="${poses[nextPoseIndex]}" style="transform: rotate(${deg}deg)">`;
+}
+updateNextPreview();
+
+function animateSwing() {
+    if (!isGameOver && canSpawn) {
+        swingPos += swingSpeed * swingDir;
+        if (swingPos >= 0.9) swingDir = -1; if (swingPos <= 0.1) swingDir = 1;
+        const x = swingPos * baseWidth;
+        const swingContainer = document.getElementById('swing-preview');
+        const size = 65; 
+        swingContainer.style.width = size + 'px'; swingContainer.style.height = size + 'px';
+        swingContainer.style.left = (x - size/2) + 'px'; swingContainer.style.display = 'flex';
+    } else { document.getElementById('swing-preview').style.display = 'none'; }
+    requestAnimationFrame(animateSwing);
+}
+animateSwing();
+
+function startDelivery(itemImgSrc, onImpact) {
+    if (isDelivering) return;
+    isDelivering = true; updateUI();
+    const unit = document.getElementById('delivery-unit'), cargo = document.getElementById('cargo-item');
+    cargo.src = itemImgSrc; cargo.style.display = 'block'; unit.style.display = 'block';
+    let pos = -100, speed = 2.5, targetDropX = baseWidth / 2 - 30, dropped = false;
+    const driveInterval = setInterval(() => {
+        pos += speed; unit.style.left = pos + 'px';
+        if (!dropped && pos >= targetDropX) { dropped = true; cargo.style.display = 'none'; dropItem(itemImgSrc, onImpact); }
+        if (pos > baseWidth + 100) { clearInterval(driveInterval); unit.style.display = 'none'; isDelivering = false; updateUI(); }
+    }, 16);
+}
+
+function dropItem(imgSrc, onImpact) {
+    const container = document.getElementById('game-container'), falling = document.createElement('img');
+    falling.src = imgSrc; falling.className = 'falling-item'; 
+    falling.style.left = (baseWidth / 2 - 12) + 'px'; falling.style.top = '25px';
+    container.appendChild(falling);
+    setTimeout(() => { onImpact(); falling.remove();
+        const el = document.getElementById('effect-layer'); el.classList.remove('flash'); void el.offsetWidth; el.classList.add('flash');
+    }, 1000); 
+}
+
+document.getElementById('item-clear').onclick = function(e) {
+    e.stopPropagation(); if (isGameOver || isDelivering) return;
+    if (displayScore >= 500) {
+        baseScore = Math.max(0, displayScore - 500);
+        startDelivery(this.querySelector('img').src, () => {
+            Composite.allBodies(world).forEach(b => { if (b.label !== 'ground') Composite.remove(world, b); });
+            displayScore = baseScore; updateUI();
+        });
+    } else { this.classList.add('error'); setTimeout(() => this.classList.remove('error'), 300); }
+};
+
+document.getElementById('item-sushi').onclick = function(e) {
+    e.stopPropagation(); if (isGameOver || isDelivering || sushiCounter !== -1) return;
+    if (displayScore >= 1000) {
+        baseScore = Math.max(0, displayScore - 1000);
+        startDelivery(this.querySelector('img').src, () => {
+            Composite.allBodies(world).forEach(b => { if (b.label !== 'ground') Body.scale(b, 1.5, 1.0); });
+            sushiCounter = 5; displayScore = baseScore; updateUI();
+        });
+    } else { this.classList.add('error'); setTimeout(() => this.classList.remove('error'), 300); }
+};
+
+document.getElementById('rotate-btn').onclick = (e) => { e.stopPropagation(); currentRotation += Math.PI / 2; updateNextPreview(); };
+
+function spawnPerson() {
+    if (isGameOver || !canSpawn) return;
+    canSpawn = false; 
+    
+    if (sushiCounter > 0) {
+        sushiCounter--;
+        if (sushiCounter === 0) {
+            Composite.remove(world, ground);
+            const lg = Bodies.rectangle(baseWidth * 0.15, baseHeight - 20, baseWidth * 0.3, 40, { isStatic: true, label: 'ground', render: { fillStyle: '#263238' } });
+            const rg = Bodies.rectangle(baseWidth * 0.85, baseHeight - 20, baseWidth * 0.3, 40, { isStatic: true, label: 'ground', render: { fillStyle: '#263238' } });
+            Composite.add(world, [lg, rg]);
+            Composite.allBodies(world).forEach(b => { if (b.label !== 'ground') Body.setStatic(b, false); });
+        }
+    }
+
+    const spawnX = swingPos * baseWidth;
+    const imgPath = poses[nextPoseIndex], img = new Image();
+    img.src = imgPath;
+    img.onload = () => {
+        const targetArea = 4500, aspectRatio = img.width / img.height;
+        const h = Math.sqrt(targetArea / aspectRatio), w = h * aspectRatio;
+        const scale = w / img.width;
+        const body = Bodies.rectangle(spawnX, 60, w, h, {
+            chamfer: { radius: [w*0.1, w*0.1, w*0.1, w*0.1] },
+            restitution: 0.1, friction: 0.6, frictionAir: 0.03, angle: currentRotation,
+            render: { sprite: { texture: imgPath, xScale: scale, yScale: scale } }
+        });
+        Composite.add(world, body);
+        setNextPose(); currentRotation = 0; updateNextPreview();
+        setTimeout(() => { canSpawn = true; }, 500);
+    };
+}
+
+Events.on(engine, 'afterUpdate', () => {
+    if (isGameOver) return;
+    let allParts = Composite.allBodies(world).filter(b => b.label !== 'ground');
+    let fixedStackScore = 0;
+
+    allParts.forEach(body => {
+        const speed = Math.sqrt(body.velocity.x**2 + body.velocity.y**2);
+        
+        // 穴が開いていない時のみ自動固定
+        if (sushiCounter !== 0) {
+            if (speed < 0.1 && Math.abs(body.angularVelocity) < 0.01) {
+                body.idleFrames = (body.idleFrames || 0) + 1;
+            } else { body.idleFrames = 0; }
+            if (body.idleFrames > 60) { Body.setStatic(body, true); }
+        }
+
+        // ゲームオーバー判定
+        if (body.position.y > baseHeight + 100) { 
+            isGameOver = true; Runner.stop(runner); 
+            document.getElementById('final-score').innerText = displayScore; 
+            document.getElementById('game-over-screen').style.display = 'flex'; 
+        }
+
+        // 【重要】固定（Static）されているパーツのみスコアに加算する
+        if (body.isStatic) {
+            fixedStackScore += (100 + Math.max(0, Math.floor((baseHeight - 40 - body.position.y) / 10)) * 10);
+        }
+    });
+    
+    // スコア表示の更新（配達中でなければ）
+    if (!isDelivering) {
+        displayScore = baseScore + fixedStackScore;
+    }
+    updateUI();
+});
+
+function restartGame() {
+    Composite.clear(world, false); 
+    ground = Bodies.rectangle(baseWidth / 2, baseHeight - 20, baseWidth * 0.7, 40, { isStatic: true, label: 'ground', render: { fillStyle: '#263238' } });
+    Composite.add(world, ground);
+    isGameOver = false; baseScore = 0; displayScore = 0; sushiCounter = -1; setNextPose(); 
+    document.getElementById('game-over-screen').style.display = 'none';
+    updateUI(); updateNextPreview(); Runner.run(runner, engine);
+}
+
+function onActionStart(e) {
+    if (e.target.closest('button') || e.target.closest('.item-btn')) return;
+    spawnPerson();
+}
+render.canvas.addEventListener('mousedown', onActionStart);
+render.canvas.addEventListener('touchstart', onActionStart, {passive: true});
+</script>
+</body>
+</html>
