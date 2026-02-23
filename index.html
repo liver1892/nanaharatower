@@ -132,9 +132,10 @@ const baseWidth = 360, baseHeight = 550;
 const ratio = window.devicePixelRatio || 1;
 
 let isGameOver = false;
-let baseScore = 0;           
+let baseScore = 0;            
 let displayScore = 0;        
 let currentRotation = 0, canSpawn = true, isDelivering = false;
+let sushiActive = false; // 寿司効果フラグ
 let sushiCounter = -1; 
 let swingPos = 0.5, swingDir = 1, swingSpeed = 0.015;
 
@@ -156,6 +157,7 @@ Render.run(render);
 let runner = Runner.create();
 Runner.run(runner, engine);
 
+// 床の初期化
 let ground = Bodies.rectangle(baseWidth / 2, baseHeight - 20, baseWidth * 0.7, 40, { 
     isStatic: true, label: 'ground', render: { fillStyle: '#263238' } 
 });
@@ -164,7 +166,7 @@ Composite.add(world, ground);
 function updateUI() {
     document.getElementById('score').innerText = displayScore;
     document.getElementById('item-clear').classList.toggle('active', displayScore >= 500 && !isDelivering);
-    document.getElementById('item-sushi').classList.toggle('active', displayScore >= 1000 && !isDelivering && sushiCounter === -1);
+    document.getElementById('item-sushi').classList.toggle('active', displayScore >= 1000 && !isDelivering && !sushiActive);
 }
 
 function updateNextPreview() {
@@ -223,13 +225,22 @@ document.getElementById('item-clear').onclick = function(e) {
     } else { this.classList.add('error'); setTimeout(() => this.classList.remove('error'), 300); }
 };
 
+// 寿司ボタンの処理
 document.getElementById('item-sushi').onclick = function(e) {
-    e.stopPropagation(); if (isGameOver || isDelivering || sushiCounter !== -1) return;
+    e.stopPropagation(); if (isGameOver || isDelivering || sushiActive) return;
     if (displayScore >= 1000) {
         baseScore = Math.max(0, displayScore - 1000);
         startDelivery(this.querySelector('img').src, () => {
-            Composite.allBodies(world).forEach(b => { if (b.label !== 'ground') Body.scale(b, 1.5, 1.0); });
-            sushiCounter = 5; displayScore = baseScore; updateUI();
+            // 全ての既存パーツの横幅を1.5倍にする
+            Composite.allBodies(world).forEach(b => { 
+                if (b.label !== 'ground') {
+                    Body.scale(b, 1.5, 1.0); 
+                }
+            });
+            sushiActive = true; 
+            sushiCounter = 5; 
+            displayScore = baseScore; 
+            updateUI();
         });
     } else { this.classList.add('error'); setTimeout(() => this.classList.remove('error'), 300); }
 };
@@ -240,14 +251,11 @@ function spawnPerson() {
     if (isGameOver || !canSpawn) return;
     canSpawn = false; 
     
+    // 寿司カウンターの管理
     if (sushiCounter > 0) {
         sushiCounter--;
         if (sushiCounter === 0) {
-            Composite.remove(world, ground);
-            const lg = Bodies.rectangle(baseWidth * 0.15, baseHeight - 20, baseWidth * 0.3, 40, { isStatic: true, label: 'ground', render: { fillStyle: '#263238' } });
-            const rg = Bodies.rectangle(baseWidth * 0.85, baseHeight - 20, baseWidth * 0.3, 40, { isStatic: true, label: 'ground', render: { fillStyle: '#263238' } });
-            Composite.add(world, [lg, rg]);
-            Composite.allBodies(world).forEach(b => { if (b.label !== 'ground') Body.setStatic(b, false); });
+            sushiActive = false; // 5回降ったあとに効果終了
         }
     }
 
@@ -257,11 +265,16 @@ function spawnPerson() {
     img.onload = () => {
         const targetArea = 4500, aspectRatio = img.width / img.height;
         const h = Math.sqrt(targetArea / aspectRatio), w = h * aspectRatio;
-        const scale = w / img.width;
-        const body = Bodies.rectangle(spawnX, 60, w, h, {
-            chamfer: { radius: [w*0.1, w*0.1, w*0.1, w*0.1] },
+        
+        // 寿司効果中なら横幅を1.5倍にしてスポーン
+        const currentW = sushiActive ? w * 1.5 : w;
+        const scaleX = currentW / img.width;
+        const scaleY = h / img.height;
+
+        const body = Bodies.rectangle(spawnX, 60, currentW, h, {
+            chamfer: { radius: [currentW*0.1, currentW*0.1, currentW*0.1, currentW*0.1] },
             restitution: 0.1, friction: 0.6, frictionAir: 0.03, angle: currentRotation,
-            render: { sprite: { texture: imgPath, xScale: scale, yScale: scale } }
+            render: { sprite: { texture: imgPath, xScale: scaleX, yScale: scaleY } }
         });
         Composite.add(world, body);
         setNextPose(); currentRotation = 0; updateNextPreview();
@@ -277,13 +290,11 @@ Events.on(engine, 'afterUpdate', () => {
     allParts.forEach(body => {
         const speed = Math.sqrt(body.velocity.x**2 + body.velocity.y**2);
         
-        // 穴が開いていない時のみ自動固定
-        if (sushiCounter !== 0) {
-            if (speed < 0.1 && Math.abs(body.angularVelocity) < 0.01) {
-                body.idleFrames = (body.idleFrames || 0) + 1;
-            } else { body.idleFrames = 0; }
-            if (body.idleFrames > 60) { Body.setStatic(body, true); }
-        }
+        // 自動固定処理（常に有効）
+        if (speed < 0.1 && Math.abs(body.angularVelocity) < 0.01) {
+            body.idleFrames = (body.idleFrames || 0) + 1;
+        } else { body.idleFrames = 0; }
+        if (body.idleFrames > 60) { Body.setStatic(body, true); }
 
         // ゲームオーバー判定
         if (body.position.y > baseHeight + 100) { 
@@ -292,13 +303,11 @@ Events.on(engine, 'afterUpdate', () => {
             document.getElementById('game-over-screen').style.display = 'flex'; 
         }
 
-        // 【重要】固定（Static）されているパーツのみスコアに加算する
         if (body.isStatic) {
             fixedStackScore += (100 + Math.max(0, Math.floor((baseHeight - 40 - body.position.y) / 10)) * 10);
         }
     });
     
-    // スコア表示の更新（配達中でなければ）
     if (!isDelivering) {
         displayScore = baseScore + fixedStackScore;
     }
@@ -307,9 +316,10 @@ Events.on(engine, 'afterUpdate', () => {
 
 function restartGame() {
     Composite.clear(world, false); 
+    // 床を穴のない一本の状態で再生成
     ground = Bodies.rectangle(baseWidth / 2, baseHeight - 20, baseWidth * 0.7, 40, { isStatic: true, label: 'ground', render: { fillStyle: '#263238' } });
     Composite.add(world, ground);
-    isGameOver = false; baseScore = 0; displayScore = 0; sushiCounter = -1; setNextPose(); 
+    isGameOver = false; baseScore = 0; displayScore = 0; sushiActive = false; sushiCounter = -1; setNextPose(); 
     document.getElementById('game-over-screen').style.display = 'none';
     updateUI(); updateNextPreview(); Runner.run(runner, engine);
 }
