@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Human Tower Battle - Fix Score & Speed</title>
+    <title>Human Tower Battle - Final Score Fix</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.19.0/matter.min.js"></script>
     <style>
         body { 
@@ -133,11 +133,10 @@ const ratio = window.devicePixelRatio || 1;
 
 let isGameOver = false;
 let displayScore = 0;        
+let baseScore = 0; // 全消去時にそれまでのスコアを保存する変数
 let currentRotation = 0, canSpawn = true, isDelivering = false;
 let swingPos = 0.5, swingDir = 1;
-
-// 初期スピードを元の 0.015 に戻しました
-let swingSpeed = 0.015;
+let swingSpeed = 0.015; // 通常速度でスタート
 
 const poses = [
     'images/pose1.png', 'images/pose2.png', 'images/pose3.png', 'images/pose4.png',
@@ -198,8 +197,12 @@ animateSwing();
 function startDelivery(itemImgSrc, cost, onImpact) {
     if (isDelivering) return;
     isDelivering = true;
-    displayScore -= cost; // 使う瞬間にコストを引く
+    
+    // スコアからコストを引いてベーススコアを更新
+    baseScore = displayScore - cost;
+    displayScore = baseScore;
     updateUI();
+
     const unit = document.getElementById('delivery-unit'), cargo = document.getElementById('cargo-item');
     cargo.src = itemImgSrc; cargo.style.display = 'block'; unit.style.display = 'block';
     let pos = -100, speed = 2.5, targetDropX = baseWidth / 2 - 30, dropped = false;
@@ -215,31 +218,27 @@ function dropItem(imgSrc, onImpact) {
     falling.src = imgSrc; falling.className = 'falling-item'; 
     falling.style.left = (baseWidth / 2 - 12) + 'px'; falling.style.top = '25px';
     container.appendChild(falling);
-    setTimeout(() => { 
-        onImpact(); 
-        falling.remove();
+    setTimeout(() => { onImpact(); falling.remove();
         const el = document.getElementById('effect-layer'); el.classList.remove('flash'); void el.offsetWidth; el.classList.add('flash');
     }, 1000); 
 }
 
-// 遺骨ボタンの修正
 document.getElementById('item-clear').onclick = function(e) {
     e.stopPropagation(); if (isGameOver || isDelivering) return;
     if (displayScore >= 500) {
-        const savedScore = displayScore - 500; // 残りスコアを保持
         startDelivery(this.querySelector('img').src, 500, () => {
+            // 全パーツ消去
             Composite.allBodies(world).forEach(b => { if (b.label !== 'ground') Composite.remove(world, b); });
-            displayScore = savedScore; // スコアを強制維持
+            // 消した後の現在の盤面スコアは0になるので、displayScoreはbaseScore単体になる
         });
     } else { this.classList.add('error'); setTimeout(() => this.classList.remove('error'), 300); }
 };
 
-// 寿司ボタン：押したときだけスピードを半分にする
 document.getElementById('item-sushi').onclick = function(e) {
     e.stopPropagation(); if (isGameOver || isDelivering) return;
     if (displayScore >= 1000) {
         startDelivery(this.querySelector('img').src, 1000, () => {
-            swingSpeed = 0.0075; // 衝撃の瞬間にスロー発動
+            swingSpeed = 0.0075; // スロー発動
         });
     } else { this.classList.add('error'); setTimeout(() => this.classList.remove('error'), 300); }
 };
@@ -271,7 +270,7 @@ function spawnPerson() {
 Events.on(engine, 'afterUpdate', () => {
     if (isGameOver) return;
     let allParts = Composite.allBodies(world).filter(b => b.label !== 'ground');
-    let currentStackScore = 0;
+    let stackScore = 0;
 
     allParts.forEach(body => {
         const speed = Math.sqrt(body.velocity.x**2 + body.velocity.y**2);
@@ -287,15 +286,12 @@ Events.on(engine, 'afterUpdate', () => {
         }
 
         if (body.isStatic) {
-            currentStackScore += (100 + Math.max(0, Math.floor((baseHeight - 40 - body.position.y) / 10)) * 10);
+            stackScore += (100 + Math.max(0, Math.floor((baseHeight - 40 - body.position.y) / 10)) * 10);
         }
     });
     
-    // アイテム使用中（isDelivering）は加算計算を止めることで、スコアのガタつきを防止
-    if (!isDelivering) {
-        // 全消し直後は0になるのを防ぐため、最低でも「今のdisplayScore」との大きい方を採用
-        displayScore = Math.max(displayScore, currentStackScore);
-    }
+    // スコア = 蓄積されたベーススコア + 現在の盤面で静止しているパーツのスコア
+    displayScore = baseScore + stackScore;
     updateUI();
 });
 
@@ -303,8 +299,8 @@ function restartGame() {
     Composite.clear(world, false); 
     ground = Bodies.rectangle(baseWidth / 2, baseHeight - 20, baseWidth * 0.7, 40, { isStatic: true, label: 'ground', render: { fillStyle: '#263238' } });
     Composite.add(world, ground);
-    isGameOver = false; displayScore = 0; lastPoseIndex = -1; setNextPose(); 
-    swingSpeed = 0.015; // スピードもリセット
+    isGameOver = false; displayScore = 0; baseScore = 0; lastPoseIndex = -1; setNextPose(); 
+    swingSpeed = 0.015;
     document.getElementById('game-over-screen').style.display = 'none';
     updateUI(); updateNextPreview(); Runner.run(runner, engine);
 }
