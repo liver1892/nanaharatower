@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Human Tower Battle - Fix Sushi & Score</title>
+    <title>Human Tower Battle - Fixed</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.19.0/matter.min.js"></script>
     <style>
         body { 
@@ -198,7 +198,7 @@ function startDelivery(itemImgSrc, cost, onImpact) {
     if (isDelivering) return;
     isDelivering = true;
     
-    // アイテムコストを displayScore から差し引き、基準スコアもそれに合わせる
+    // コスト消費：現在の総スコアから引き、それを永続スコア（baseScore）に反映
     displayScore -= cost;
     baseScore = displayScore; 
     updateUI();
@@ -223,6 +223,7 @@ function dropItem(imgSrc, onImpact) {
     }, 1000); 
 }
 
+// 遺骨ボタン：500pt消費して全消去
 document.getElementById('item-clear').onclick = function(e) {
     e.stopPropagation(); if (isGameOver || isDelivering) return;
     if (displayScore >= 500) {
@@ -232,6 +233,7 @@ document.getElementById('item-clear').onclick = function(e) {
     } else { this.classList.add('error'); setTimeout(() => this.classList.remove('error'), 300); }
 };
 
+// 寿司ボタン：1000pt消費してスピード半分
 document.getElementById('item-sushi').onclick = function(e) {
     e.stopPropagation(); if (isGameOver || isDelivering) return;
     if (displayScore >= 1000) {
@@ -288,7 +290,7 @@ Events.on(engine, 'afterUpdate', () => {
         }
     });
     
-    // 合計スコア = アイテム使用後のベーススコア + 現在の盤面の得点
+    // 総スコア = ベース(アイテム使用後) + 盤面の静止パーツ得点
     displayScore = baseScore + stackScore;
     updateUI();
 });
