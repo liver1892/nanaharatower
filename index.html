@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Human Tower Battle - Final Score Fix</title>
+    <title>Human Tower Battle - Fix Sushi & Score</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.19.0/matter.min.js"></script>
     <style>
         body { 
@@ -117,7 +117,7 @@
         <div class="item-btn" id="item-sushi">
             <img src="images/item2.png" alt="寿司" onerror="this.src='https://cdn-icons-png.flaticon.com/512/2252/2252430.png'">
             <div class="item-text">
-                <div class="item-name">特上寿司</div>
+                <div class="item-name">寿司</div>
                 <div class="item-cost">消費: 1000pt</div>
             </div>
         </div>
@@ -133,10 +133,10 @@ const ratio = window.devicePixelRatio || 1;
 
 let isGameOver = false;
 let displayScore = 0;        
-let baseScore = 0; // 全消去時にそれまでのスコアを保存する変数
+let baseScore = 0; 
 let currentRotation = 0, canSpawn = true, isDelivering = false;
 let swingPos = 0.5, swingDir = 1;
-let swingSpeed = 0.015; // 通常速度でスタート
+let swingSpeed = 0.015;
 
 const poses = [
     'images/pose1.png', 'images/pose2.png', 'images/pose3.png', 'images/pose4.png',
@@ -198,9 +198,9 @@ function startDelivery(itemImgSrc, cost, onImpact) {
     if (isDelivering) return;
     isDelivering = true;
     
-    // スコアからコストを引いてベーススコアを更新
-    baseScore = displayScore - cost;
-    displayScore = baseScore;
+    // アイテムコストを displayScore から差し引き、基準スコアもそれに合わせる
+    displayScore -= cost;
+    baseScore = displayScore; 
     updateUI();
 
     const unit = document.getElementById('delivery-unit'), cargo = document.getElementById('cargo-item');
@@ -227,9 +227,7 @@ document.getElementById('item-clear').onclick = function(e) {
     e.stopPropagation(); if (isGameOver || isDelivering) return;
     if (displayScore >= 500) {
         startDelivery(this.querySelector('img').src, 500, () => {
-            // 全パーツ消去
             Composite.allBodies(world).forEach(b => { if (b.label !== 'ground') Composite.remove(world, b); });
-            // 消した後の現在の盤面スコアは0になるので、displayScoreはbaseScore単体になる
         });
     } else { this.classList.add('error'); setTimeout(() => this.classList.remove('error'), 300); }
 };
@@ -238,7 +236,7 @@ document.getElementById('item-sushi').onclick = function(e) {
     e.stopPropagation(); if (isGameOver || isDelivering) return;
     if (displayScore >= 1000) {
         startDelivery(this.querySelector('img').src, 1000, () => {
-            swingSpeed = 0.0075; // スロー発動
+            swingSpeed = 0.0075;
         });
     } else { this.classList.add('error'); setTimeout(() => this.classList.remove('error'), 300); }
 };
@@ -290,7 +288,7 @@ Events.on(engine, 'afterUpdate', () => {
         }
     });
     
-    // スコア = 蓄積されたベーススコア + 現在の盤面で静止しているパーツのスコア
+    // 合計スコア = アイテム使用後のベーススコア + 現在の盤面の得点
     displayScore = baseScore + stackScore;
     updateUI();
 });
